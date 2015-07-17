@@ -3,6 +3,7 @@ import tornado.web
 import json
 import sys
 from tornado.log import logging, gen_log
+import time
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -16,6 +17,14 @@ class RecvHandler(tornado.web.RequestHandler):
       pass
     else:
       gen_log.info('mandrill_events ' + str(ev))
+      localtime = time.asctime( time.localtime(time.time()) )
+      localtime = localtime.replace(' ', '_')
+      localtime = localtime.replace(':', '_')
+      jsonfile='Json_mail_' + localtime + '.txt'
+      with open(jsonfile, 'w') as outfile:
+          outfile.write(str(ev))
+          outfile.close()
+
       jev = json.loads(ev, "utf-8")
       if jev[0]['msg']['spam_report']['score'] >= 5:
         print('Spam!!')
@@ -29,22 +38,31 @@ class RecvHandler(tornado.web.RequestHandler):
         print('Headers: ' , jev[0]['msg']['headers'])
         print("===================================================================")
 
-        for to,toname in jev[0]['msg']['to']:
-          print('to: ' + to)
-          if toname:
-            print('To: ' + toname)
+        keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
+
+        if 'to' in keys:
+          for to,toname in jev[0]['msg']['to']:
+            print('to: ' + to)
+            if toname:
+              print('To: ' + toname)
+
+        if 'cc' in keys:
+          for cc,ccname in jev[0]['msg']['cc']:
+            print('cc: ' + cc)
+            if ccname:
+              print('Cc: ' + ccname)
 
         if 'attachments' in jev[0]['msg']:
           for name,attachment in jev[0]['msg']['attachments'].items():
             print('attachmet name ' + attachment['name'])
             print('attachmet type ' + attachment['type'])
-            print('attachmet base64 ' + attachment['base64'])
+            print('attachmet base64 ' + str(attachment['base64']))
 
         if 'images' in jev[0]['msg']:
           for name,image in jev[0]['msg']['images'].items():
             print('image name ' + image['name'])
             print('image type ' + image['type'])
-            print('image base64 ' + image['base64'])
+            print('image base64 ' + str(image['base64']))
 
     self.set_status(200)
     self.write({'status': 200})

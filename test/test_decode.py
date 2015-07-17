@@ -1,3 +1,4 @@
+#!/usr/bin/python3.4
 import json
 import sys
 import smtplib
@@ -18,17 +19,36 @@ def decode_mail(ev):
     print('html part: ' + ev['msg']['html'])
     print('from: ' + ev['msg']['from_email'])
     print('From: ' + ev['msg']['from_name'])
-    for to,toname in ev['msg']['to']:
-      print('to: ' + to)
-      if toname:
-        print('To: ' + toname)
-    if 'attachments' in ev['msg']:
+    keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
+    print ("Keys {}".format(keys))
+    print ("Type of keys : {}".format(type(ev['msg'])))
+    if 'to' in keys:
+      for to,toname in ev['msg']['to']:
+        print('to: ' + to)
+        if toname:
+          print('To: ' + toname)
+
+    if 'cc' in keys:
+      for cc,ccname in ev['msg']['cc']:
+        print('cc: ' + cc)
+        if ccname:
+          print('Cc: ' + ccname)
+
+    if 'bcc' in keys:
+      for bcc,bccname in ev['msg']['bcc']:
+        print('bcc: ' + bcc)
+        if bccname:
+          print('BCc: ' + bccname)
+
+    if 'attachments' in keys:
       for name,attachment in ev['msg']['attachments'].items():
         print('attachmet name ' + attachment['name'])
-    if 'images' in ev['msg']:
+
+    if 'images' in keys:
       for name,image in ev['msg']['images'].items():
         print('image name ' + image['name'])
     print("*********************************************************\n")
+
     updatemail(ev)
 
 def updatemail(ev):
@@ -42,7 +62,7 @@ def updatemail(ev):
     part2 = MIMEText(html, 'html')
     msg.attach(part1)
     msg.attach(part2)
-    sendmail(ev, msg)
+    #sendmail(ev, msg)
     print ("sent mail successfully")
     
 
