@@ -1,12 +1,87 @@
 #!/usr/bin/python3.4
+import re
 import json
 import sys
 import smtplib
 import tempfile
 import mimetypes
+import email.utils
+from email import encoders
+from email.message import Message
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import email.utils
+
+
+indent = 1
+'''
+def print_dict(dic, name):
+    print ("DICTONARY : {} -->".format(name))
+    space ='|'
+    print ('++++++++++++++++++++++++++++++++++++++++++++++++++++\n')
+    global indent
+
+    for i in range(indent):
+        space += '- '
+
+    for i in dic:
+        if not isinstance(dic[i], dict):
+            print ('{} keys[{}]                :  {}\n'.format(space, i, dic[i]))
+        else:
+            print_dict(dic[i], i)
+    print ('++++++++++++++++++++++++++++++++++++++++++++++++++++\n')
+    indent += 1
+'''
+
+def populate_addresses(ev, msg, keys):
+    bccmightbepresent = True
+    
+    rcptslist = list()
+
+    msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
+
+    toaddresses =""
+    if 'to' in keys:
+      for to,toname in ev['msg']['to']:
+        #print('to: ' + to)
+        if toname:
+          #print('To: ' + toname)
+            toaddresses += email.utils.formataddr((toname,to)) + ','
+        else:
+            toaddresses += to + ','
+        rcptslist.append(to)
+    msg['To'] = toaddresses
+
+    ccaddresses = ""
+    if 'cc' in keys:
+      for cc,ccname in ev['msg']['cc']:
+        print('cc: ' + cc)
+        if ccname:
+            ccaddresses = email.utils.formataddr((ccname,cc)) + ','
+        else:
+            ccaddresses += cc + ','
+        rcptslist.append(cc)
+
+    msg['Cc'] = ccaddresses
+    
+    bccmail = list()
+    if bccmightbepresent:
+        msg['X-MC-PreserveRecipients'] = 'false'
+        recvdlist = (ev['msg']['headers']['Received'])
+        for i in recvdlist:
+            match = re.search('([\w.-]+)@([\w.-]+)', i)
+            if match is not None:
+                bccemail = match.group()
+                if 'edulead' in bccemail and 'from' in i:
+                    bccmail.append(bccemail)
+        setaddr = set(bccmail)
+        bccmail = list(setaddr)
+        rcptslist.append(bccmail)
+        msg['Bcc'] = ','.join(bccmail)
+
+    return rcptslist
 
 def decode_mail(ev):
   print ("TYPE EV : {}".format(type(ev)))
@@ -20,41 +95,70 @@ def decode_mail(ev):
     print('from: ' + ev['msg']['from_email'])
     print('From: ' + ev['msg']['from_name'])
     keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
+    values = [ k for k in ev['msg'] if k in ev['msg'].values() ]
     print ("Keys {}".format(keys))
     print ("Type of keys : {}".format(type(ev['msg'])))
-    if 'to' in keys:
-      for to,toname in ev['msg']['to']:
-        print('to: ' + to)
-        if toname:
-          print('To: ' + toname)
+    print("*********************************************************\n")
+    
+    '''
+    print ("------------------------------------------\n")
+    for k in ev:
+        print ('1 keys[{}]                :  {}\n'.format(k[0], k[1]))
+        if isinstance(ev[k], dict):
+            print ("------\n")
+            dic = ev[k]
+            print_dict(dic, k)
+            print ("------\n")
+            
+    print ("------------------------------------------\n")
+    '''
+    
+    msg = MIMEMultipart('alternative')
+    rcptslist = populate_addresses(ev, msg, keys)
+    updatemail(ev, msg, keys)
 
-    if 'cc' in keys:
-      for cc,ccname in ev['msg']['cc']:
-        print('cc: ' + cc)
-        if ccname:
-          print('Cc: ' + ccname)
+    sendmail(ev, msg, rcptslist)
+    print ("sent mail successfully")
 
-    if 'bcc' in keys:
-      for bcc,bccname in ev['msg']['bcc']:
-        print('bcc: ' + bcc)
-        if bccname:
-          print('BCc: ' + bccname)
-
+def updateAttachments(ev, msg, keys):
     if 'attachments' in keys:
       for name,attachment in ev['msg']['attachments'].items():
-        print('attachmet name ' + attachment['name'])
+        file_name = attachment['name']
+        aType = attachment['type']
+        if aType is None:
+            aType = 'application/octet-stream'
+        isBase64 = attachment['base64']
+        maintype, subtype = aType.split('/', 1)
+        if 'text' == maintype:
+            part = MIMEText(attachment['content'], subtype)
+        elif 'audio' == maintype:
+            part = MIMEAudio(attachment['content'], subtype)
+        else:
+            part = MIMEBase(maintype, subtype)
+            part.set_payload(attachment['content'])
+
+        # Encode the payload using Base64
+        if isBase64:
+            encoders.encode_base64(part)
+        # Set the filename parameter
+        if file_name is not None:
+            part.add_header('Content-Disposition', 'attachment', filename=file_name)
+        else:
+            raise ValueError("File name missing")
+        msg.attach(part)
 
     if 'images' in keys:
-      for name,image in ev['msg']['images'].items():
-        print('image name ' + image['name'])
-    print("*********************************************************\n")
+      for image in ev['msg']['images'].items():
+        file_name = images['name']
+        aType = images['type']
+        isBase64 = images['base64']
+        img = MIMEImage(image['content'] ,_subtype=subtype)
+        if isBase64:
+            encoders.encode_base64(part)
+        part.add_header('Content-Disposition', 'attachment', filename=file_name)
+        msg.attach(img)
 
-    updatemail(ev)
-
-def updatemail(ev):
-    msg = MIMEMultipart('alternative')
-    msg['To'] = email.utils.formataddr(('Recipient', "badari.hp@gmail.com"))
-    msg['From'] = email.utils.formataddr((ev['msg']['from_name'], 'reply@inbound.edulead.in'))
+def updatemail(ev, msg, keys):
     msg['Subject'] = ev['msg']['subject'] + "TESTING 2"
     text = ev['msg']['text']
     html = ev['msg']['html']
@@ -62,11 +166,12 @@ def updatemail(ev):
     part2 = MIMEText(html, 'html')
     msg.attach(part1)
     msg.attach(part2)
-    #sendmail(ev, msg)
-    print ("sent mail successfully")
+
+    updateAttachments(ev, msg, keys)
+
     
 
-def sendmail(ev, msg):
+def sendmail(ev, msg, to):
     print ("Tryingin to send mail\n")
     server = smtplib.SMTP('smtp.mandrillapp.com', 587)
     try:
@@ -81,7 +186,10 @@ def sendmail(ev, msg):
             server.ehlo() # re-identify ourselves over TLS connection
 
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
-        server.sendmail(ev['msg']['from_email'], "badari.hp@gmail.com", msg.as_string())
+
+        print ('RCPT : {}'.format(to))
+        composed = msg.as_string()
+        server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
         server.quit()
 
