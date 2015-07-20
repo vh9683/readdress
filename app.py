@@ -7,7 +7,7 @@ import time
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        self.write("Hello, world")
+        self.render("index.html")
 
 class RecvHandler(tornado.web.RequestHandler):
   def post(self):
@@ -78,10 +78,15 @@ class RecvHandler(tornado.web.RequestHandler):
  
 logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
+settings = {"static_path": "frontend/Freeze/",
+            "template_path": "frontend/Freeze/html/",
+}
+
 application = tornado.web.Application([
     (r"/", MainHandler),
     (r"/recv", RecvHandler),
-])
+    (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
+], **settings)
 
 if __name__ == "__main__":
     application.listen(8985)
