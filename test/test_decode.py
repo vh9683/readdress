@@ -13,6 +13,9 @@ from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import uuid
+
+from map_email import emap
 
 
 indent = 1
@@ -35,6 +38,27 @@ def print_dict(dic, name):
     indent += 1
 '''
 
+mapper = dict()
+mapper['9686111887@inbound.edulead.in'] = 'badariprasad.h@gmail.com'
+mapper["9845837392@inbound.edulead.in"] = 'smitah3@gmail.com'
+mapper["badari.hp@inbound.edulead.in"]  = 'badari.ph@gmail.com'
+mapper['harish@inbound.edulead.in']     = 'harish.v.murthy@gmail.com'
+
+reversemap = dict()
+reversemap['badariprasad.h@gmail.com']  = '9686111887@inbound.edulead.in'
+reversemap['smitah3@gmail.com']         = "9845837392@inbound.edulead.in"
+reversemap['badari.ph@gmail.com']       = "badari.hp@inbound.edulead.in"
+reversemap['harish.v.murthy@gmail.com'] = 'harish@inbound.edulead.in'
+
+
+def lookup(email):
+  mappedmail =  mapper.get(email) 
+  return mappedmail
+
+def getpsuedomail(email):
+  mappedmail =  reversemap.get(email) 
+  return mappedmail
+
 def populate_addresses(ev, msg, keys):
     bccmightbepresent = True
     
@@ -46,26 +70,46 @@ def populate_addresses(ev, msg, keys):
     if 'to' in keys:
       for to,toname in ev['msg']['to']:
         #print('to: ' + to)
-        if toname:
-          #print('To: ' + toname)
-            toaddresses += email.utils.formataddr((toname,to)) + ','
+        mto = ""
+        if 'inbound' in to :
+          mto = lookup(to)
         else:
-            toaddresses += to + ','
-        rcptslist.append(to)
+          mto = getpsuedomail(to)
+
+        if mto is None:
+           mto = to
+
+        if toname:
+            toaddresses += email.utils.formataddr((toname,mto)) + ','
+        else:
+            toaddresses += mto + ','
+
+        rcptslist.append(mto)
+
     msg['To'] = toaddresses
 
     ccaddresses = ""
     if 'cc' in keys:
       for cc,ccname in ev['msg']['cc']:
-        print('cc: ' + cc)
-        if ccname:
-            ccaddresses = email.utils.formataddr((ccname,cc)) + ','
+        mcc = ""
+        if 'inbound' in cc :
+          mcc = lookup(cc)
         else:
-            ccaddresses += cc + ','
-        rcptslist.append(cc)
+          mcc = getpsuedomail(cc)
+
+        if mcc is None:
+           mcc = cc
+
+        if ccname:
+            ccaddresses = email.utils.formataddr((ccname,mcc)) + ','
+        else:
+            ccaddresses += mcc + ','
+        rcptslist.append(mcc)
 
     msg['Cc'] = ccaddresses
-    
+    msg['X-MC-PreserveRecipients'] = 'true'
+
+    ''' 
     bccmail = list()
     if bccmightbepresent:
         msg['X-MC-PreserveRecipients'] = 'false'
@@ -80,6 +124,7 @@ def populate_addresses(ev, msg, keys):
         bccmail = list(setaddr)
         rcptslist.append(bccmail)
         msg['Bcc'] = ','.join(bccmail)
+    '''
 
     return rcptslist
 
@@ -188,7 +233,12 @@ def sendmail(ev, msg, to):
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         print ('RCPT : {}'.format(to))
+        REPLY_TO_ADDRESS = (uuid.uuid1().urn[9:]) + '@inbound.edulead.in'
+        REPLY_TO_ADDRESS.replace('-','')
+        print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+        msg.add_header('reply-to', REPLY_TO_ADDRESS)
         composed = msg.as_string()
+        print ("ACTUAL MSG \n {} \n".format(composed))
         server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
         server.quit()
@@ -209,26 +259,3 @@ if __name__ == "__main__":
                     else:
                         print ("Keys : {} , Values :  {} ".format(keys, line[keys]))
                 print ("\n\n==============================\n")
-
-'''
-with open('testmail.txt','r') as f:
-  ev = json.load(f)
-  if ev[0]['msg']['spam_report']['score'] >= 5:
-    print('Spam!!')
-  else:
-    print('subject: ' + ev[0]['msg']['subject'])
-    print('text part: ' + ev[0]['msg']['text'])
-    print('html part: ' + ev[0]['msg']['html'])
-    print('from: ' + ev[0]['msg']['from_email'])
-    print('From: ' + ev[0]['msg']['from_name'])
-    for to,toname in ev[0]['msg']['to']:
-      print('to: ' + to)
-      if toname:
-        print('To: ' + toname)
-    if 'attachments' in ev[0]['msg']:
-      for name,attachment in ev[0]['msg']['attachments'].items():
-        print('attachmet name ' + attachment['name'])
-    if 'images' in ev[0]['msg']:
-      for name,image in ev[0]['msg']['images'].items():
-        print('image name ' + image['name'])
-'''
