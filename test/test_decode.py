@@ -13,7 +13,9 @@ from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.headerregistry import Address
 import uuid
+import base64
 
 from map_email import emap
 
@@ -40,15 +42,17 @@ def print_dict(dic, name):
 
 mapper = dict()
 mapper['9686111887@inbound.edulead.in'] = 'badariprasad.h@gmail.com'
-mapper["9845837392@inbound.edulead.in"] = 'smitah3@gmail.com'
+mapper["9845837392@inbound.edulead.in"] = 'badari.hp@outlook.com'
 mapper["badari.hp@inbound.edulead.in"]  = 'badari.ph@gmail.com'
 mapper['harish@inbound.edulead.in']     = 'harish.v.murthy@gmail.com'
+mapper['testingmail@inbound.edulead.in']= 'badari.hp@gmail.com'
 
 reversemap = dict()
 reversemap['badariprasad.h@gmail.com']  = '9686111887@inbound.edulead.in'
-reversemap['smitah3@gmail.com']         = "9845837392@inbound.edulead.in"
+reversemap['badari.hp@outlook.com']     = "9845837392@inbound.edulead.in"
 reversemap['badari.ph@gmail.com']       = "badari.hp@inbound.edulead.in"
 reversemap['harish.v.murthy@gmail.com'] = 'harish@inbound.edulead.in'
+reversemap['badari.hp@gmail.com']       = 'testingmail@inbound.edulead.in'
 
 
 def lookup(email):
@@ -59,13 +63,16 @@ def getpsuedomail(email):
   mappedmail =  reversemap.get(email) 
   return mappedmail
 
-def populate_addresses(ev, msg, keys):
-    bccmightbepresent = True
-    
+def populate_from_addresses(ev, msg, keys):
+    #msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
+    if 'inbound' in ev['msg']['from_email']:
+        msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
+    else:
+        emailaddress = getpsuedomail(ev['msg']['from_email'])
+        msg['From'] = email.utils.formataddr((ev['msg']['from_name'], emailaddress))
+
+def populate_to_addresses(ev, msg, keys):
     rcptslist = list()
-
-    msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
-
     toaddresses =""
     if 'to' in keys:
       for to,toname in ev['msg']['to']:
@@ -80,14 +87,17 @@ def populate_addresses(ev, msg, keys):
            mto = to
 
         if toname:
-            toaddresses += email.utils.formataddr((toname,mto)) + ','
+            toaddresses += email.utils.formataddr((toname,to)) + ' ,'
         else:
-            toaddresses += mto + ','
+            toaddresses += to + ' ,'
 
         rcptslist.append(mto)
 
-    msg['To'] = toaddresses
+    msg['To'] = toaddresses + 'testingloop@inbound.edulead.in'
+    return rcptslist
 
+def populate_cc_addresses(ev, msg, keys):
+    rcptslist = list()
     ccaddresses = ""
     if 'cc' in keys:
       for cc,ccname in ev['msg']['cc']:
@@ -101,13 +111,12 @@ def populate_addresses(ev, msg, keys):
            mcc = cc
 
         if ccname:
-            ccaddresses = email.utils.formataddr((ccname,mcc)) + ','
+            ccaddresses = email.utils.formataddr((ccname,cc)) + ','
         else:
-            ccaddresses += mcc + ','
+            ccaddresses += cc + ','
         rcptslist.append(mcc)
 
     msg['Cc'] = ccaddresses
-    msg['X-MC-PreserveRecipients'] = 'true'
 
     ''' 
     bccmail = list()
@@ -159,9 +168,15 @@ def decode_mail(ev):
     '''
     
     msg = MIMEMultipart('alternative')
-    rcptslist = populate_addresses(ev, msg, keys)
     updatemail(ev, msg, keys)
-
+    msg['X-MC-PreserveRecipients'] = 'true'
+    populate_from_addresses(ev, msg, keys)
+    torcpts = populate_to_addresses(ev, msg, keys)
+    msg['Comments'] = ','.join(torcpts)
+    msg['Keywords'] = ','.join(torcpts)
+    msg['X-MC-Metadata'] = '{ "trans_id": "123" }'
+    ccrcpts = populate_cc_addresses(ev, msg, keys)
+    rcptslist = torcpts + ccrcpts 
     sendmail(ev, msg, rcptslist)
     print ("sent mail successfully")
 
@@ -233,10 +248,14 @@ def sendmail(ev, msg, to):
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         print ('RCPT : {}'.format(to))
-        REPLY_TO_ADDRESS = (uuid.uuid1().urn[9:]) + '@inbound.edulead.in'
-        REPLY_TO_ADDRESS.replace('-','')
+        #REPLY_TO_ADDRESS = (uuid.uuid4().urn[9:]) #+ '@inbound.edulead.in'
+        REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
+        #REPLY_TO_ADDRESS = REPLY_TO_ADDRESS.replace('-','')
+        #encoded = base64.b64encode(bytes(REPLY_TO_ADDRESS), 'utf-8')
+        REPLY_TO_ADDRESS = REPLY_TO_ADDRESS + '@inbound.edulead.in'
         print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
         msg.add_header('reply-to', REPLY_TO_ADDRESS)
+        #msg.add_header('In-Reply-To', '1_'+REPLY_TO_ADDRESS)
         composed = msg.as_string()
         print ("ACTUAL MSG \n {} \n".format(composed))
         server.sendmail(ev['msg']['from_email'], to, composed)
