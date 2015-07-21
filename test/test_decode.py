@@ -17,8 +17,6 @@ from email.headerregistry import Address
 import uuid
 import base64
 
-from map_email import emap
-
 
 indent = 1
 '''
