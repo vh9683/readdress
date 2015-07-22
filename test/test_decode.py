@@ -189,9 +189,12 @@ def decode_mail(ev):
     print ("ATO : {}".format(toactuallist))
 
     REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
-    REPLY_TO_ADDRESS = REPLY_TO_ADDRESS + '@inbound.edulead.in'
+    REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
     print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+    #REPLY_TO_ADDRESS =  email.utils.make_msgid(REPLY_TO_ADDRESS)
+
     msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+    #msg.add_header("Message-Id", REPLY_TO_ADDRESS)
 
     allrecipients = torcpts + ccrcpts
     print('\n')
@@ -199,6 +202,8 @@ def decode_mail(ev):
         arcpts = list(allrecipients)
         todup = list(toactuallist)
         ccdup = list(ccactuallist)
+
+        '''
         mailidx = torcpts.index(mailid)
         print ("mailidx : {}".format(mailidx))
         toremovemail = todup[mailidx]
@@ -209,6 +214,7 @@ def decode_mail(ev):
             ccremovemail = ccdup[mailidx]
             print ("ccrcpt : {} cremovemail :{}".format(mailid, ccremovemail))
             ccdup.remove(ccremovemail)
+        '''
             
         toremovemail = None
         ccremovemail = None
