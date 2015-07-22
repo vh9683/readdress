@@ -71,7 +71,8 @@ def populate_from_addresses(ev, msg, keys):
 
 def populate_to_addresses(ev, msg, keys):
     rcptslist = list()
-    toaddresses =""
+    actuallist = list()
+    #toaddresses =""
     if 'to' in keys:
       for to,toname in ev['msg']['to']:
         #print('to: ' + to)
@@ -85,17 +86,20 @@ def populate_to_addresses(ev, msg, keys):
            mto = to
 
         if toname:
-            toaddresses += email.utils.formataddr((toname,to)) + ' ,'
+            #toaddresses += email.utils.formataddr((toname,to)) + ' ,'
+            actuallist.append(email.utils.formataddr((toname,to)))
         else:
-            toaddresses += to + ' ,'
+            #toaddresses += to + ' ,'
+            actuallist.append(to)
 
         rcptslist.append(mto)
 
-    msg['To'] = toaddresses + 'testingloop@inbound.edulead.in'
-    return rcptslist
+    #msg['To'] = toaddresses + 'testingloop@inbound.edulead.in'
+    return rcptslist, actuallist
 
 def populate_cc_addresses(ev, msg, keys):
     rcptslist = list()
+    actuallist = list()
     ccaddresses = ""
     if 'cc' in keys:
       for cc,ccname in ev['msg']['cc']:
@@ -110,11 +114,13 @@ def populate_cc_addresses(ev, msg, keys):
 
         if ccname:
             ccaddresses = email.utils.formataddr((ccname,cc)) + ','
+            actuallist.append(email.utils.formataddr((ccname,cc)))
         else:
             ccaddresses += cc + ','
+            actuallist.append(cc)
         rcptslist.append(mcc)
 
-    msg['Cc'] = ccaddresses
+    #msg['Cc'] = ccaddresses
 
     ''' 
     bccmail = list()
@@ -133,7 +139,7 @@ def populate_cc_addresses(ev, msg, keys):
         msg['Bcc'] = ','.join(bccmail)
     '''
 
-    return rcptslist
+    return rcptslist, actuallist
 
 def decode_mail(ev):
   print ("TYPE EV : {}".format(type(ev)))
@@ -169,14 +175,55 @@ def decode_mail(ev):
     updatemail(ev, msg, keys)
     msg['X-MC-PreserveRecipients'] = 'true'
     populate_from_addresses(ev, msg, keys)
-    torcpts = populate_to_addresses(ev, msg, keys)
+    torcpts, toactuallist = populate_to_addresses(ev, msg, keys)
     msg['Comments'] = ','.join(torcpts)
     msg['Keywords'] = ','.join(torcpts)
     msg['X-MC-Metadata'] = '{ "trans_id": "123" }'
-    ccrcpts = populate_cc_addresses(ev, msg, keys)
-    rcptslist = torcpts + ccrcpts 
-    sendmail(ev, msg, rcptslist)
-    print ("sent mail successfully")
+    ccrcpts,ccactuallist = populate_cc_addresses(ev, msg, keys)
+    #rcptslist = torcpts + ccrcpts 
+    print ("TO : {}".format(torcpts))
+    print ("ATO : {}".format(toactuallist))
+
+    REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
+    REPLY_TO_ADDRESS = REPLY_TO_ADDRESS + '@inbound.edulead.in'
+    print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+    msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+
+    allrecipients = torcpts + ccrcpts
+    print('\n')
+    for mailid in allrecipients:
+        arcpts = list(allrecipients)
+        todup = list(toactuallist)
+        ccdup = list(ccactuallist)
+        mailidx = torcpts.index(mailid)
+        print ("mailidx : {}".format(mailidx))
+        toremovemail = todup[mailidx]
+        print ("to recipient : {} toremovemail: {}".format(mailid, toremovemail))
+        if toremovemail is not None:
+            todup.remove(toremovemail)
+        elif ccdup is not None:
+            ccremovemail = ccdup[mailidx]
+            print ("ccrcpt : {} cremovemail :{}".format(mailid, ccremovemail))
+            ccdup.remove(ccremovemail)
+            
+        toremovemail = None
+        ccremovemail = None
+        toheaders = ','.join(todup) 
+        ccheaders = '.'.join(ccdup)
+
+        print("To Header: {}".format(toheaders))
+        print("CC Header: {}".format(ccheaders))
+        
+        actualmsg = msg
+        actualmsg['To'] = toheaders
+        actualmsg['Cc'] = ccheaders
+
+        sendmail(ev, actualmsg, mailid)
+        del actualmsg
+        del todup 
+        del ccdup 
+        del toheaders, ccheaders 
+        print ("sent mail successfully")
 
 def updateAttachments(ev, msg, keys):
     if 'attachments' in keys:
@@ -246,14 +293,7 @@ def sendmail(ev, msg, to):
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         print ('RCPT : {}'.format(to))
-        #REPLY_TO_ADDRESS = (uuid.uuid4().urn[9:]) #+ '@inbound.edulead.in'
-        REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
-        #REPLY_TO_ADDRESS = REPLY_TO_ADDRESS.replace('-','')
-        #encoded = base64.b64encode(bytes(REPLY_TO_ADDRESS), 'utf-8')
-        REPLY_TO_ADDRESS = REPLY_TO_ADDRESS + '@inbound.edulead.in'
-        print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
-        msg.add_header('reply-to', REPLY_TO_ADDRESS)
-        #msg.add_header('In-Reply-To', '1_'+REPLY_TO_ADDRESS)
+
         composed = msg.as_string()
         print ("ACTUAL MSG \n {} \n".format(composed))
         server.sendmail(ev['msg']['from_email'], to, composed)
