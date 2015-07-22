@@ -242,7 +242,64 @@ def decode_mail(ev):
         if ccactuallist:
             print("CC ACTUAL {}".format(ccactuallist))
 
+        REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
+        REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
+        print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+        print ("header {} ".format(ev['msg']['headers']['Message-Id']))
+        msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+
+
         allrecipients = torcpts + ccrcpts
+        for mailid in allrecipients:
+            arcpts = list(allrecipients)
+            todup = list(toactuallist)
+            ccdup = list(ccactuallist)
+
+            if todup is not None and mailid in torcpts:
+                mailidx = torcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                toremovemail = todup[mailidx]
+                print ("to recipient : {} toremovemail: {}".format(mailid, toremovemail))
+                if toremovemail is not None:
+                    todup.remove(toremovemail)
+            elif ccdup is not None and mailid in ccrcpts:
+                mailidx = ccrcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                ccremovemail = ccdup[mailidx]
+                print ("ccrcpt : {} ccremovemail :{}".format(mailid, ccremovemail))
+                ccdup.remove(ccremovemail)
+
+            toremovemail = None
+            ccremovemail = None
+        
+            alladdresses = todup + ccdup
+            #toheaders = ','.join(todup) 
+            #ccheaders = ','.join(ccdup)
+
+            actualmsg = None
+            actualmsg = msg
+
+            if len(alladdresses) > 5:
+                toheaders = ','.join(alladdresses[0:5:1])
+                ccheaders = ','.join(alladdresses[5:])
+                actualmsg['To'] = toheaders
+                actualmsg['Cc'] = ccheaders
+            else:
+                toheaders = ','.join(alladdresses)
+                actualmsg['To'] = toheaders
+
+            print("To Header: {}".format(actualmsg['To']))
+            print("CC Header: {}".format(actualmsg['Cc']))
+        
+            sendmail(ev, actualmsg, mailid)
+            del msg['To'] 
+            del msg['Cc'] 
+            del actualmsg
+            del todup 
+            del ccdup 
+            #del toheaders, ccheaders 
+            print ("sent mail successfully")
+
 
 
     if not inreplyto: #received a new mail
@@ -265,9 +322,6 @@ def decode_mail(ev):
         REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
         print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
         print ("header {} ".format(ev['msg']['headers']['Message-Id']))
-        print ("all headers {} ".format(ev['msg']['headers']))
-
-        #REPLY_TO_ADDRESS =  email.utils.make_msgid(REPLY_TO_ADDRESS)
 
         msg.add_header("Message-Id", REPLY_TO_ADDRESS)
 
@@ -296,24 +350,32 @@ def decode_mail(ev):
             toremovemail = None
             ccremovemail = None
         
-            toheaders = ','.join(todup) 
-            ccheaders = '.'.join(ccdup)
+            alladdresses = todup + ccdup
+            #toheaders = ','.join(todup) 
+            #ccheaders = ','.join(ccdup)
 
-            print("To Header: {}".format(toheaders))
-            print("CC Header: {}".format(ccheaders))
-        
             actualmsg = None
             actualmsg = msg
-            actualmsg['To'] = toheaders
-            actualmsg['Cc'] = ccheaders
 
+            if len(alladdresses) > 5:
+                toheaders = ','.join(alladdresses[0:5:1])
+                ccheaders = ','.join(alladdresses[5:])
+                actualmsg['To'] = toheaders
+                actualmsg['Cc'] = ccheaders
+            else:
+                toheaders = ','.join(alladdresses)
+                actualmsg['To'] = toheaders
+
+            print("To Header: {}".format(actualmsg['To']))
+            print("CC Header: {}".format(actualmsg['Cc']))
+        
             sendmail(ev, actualmsg, mailid)
             del msg['To'] 
             del msg['Cc'] 
             del actualmsg
             del todup 
             del ccdup 
-            del toheaders, ccheaders 
+            #del toheaders, ccheaders 
             print ("sent mail successfully")
 
 def updateAttachments(ev, msg, keys):
@@ -386,7 +448,7 @@ def sendmail(ev, msg, to):
 
         composed = msg.as_string()
         print ("ACTUAL MSG \n {} \n".format(composed))
-        #server.sendmail(ev['msg']['from_email'], to, composed)
+        server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
         server.quit()
 
