@@ -62,12 +62,16 @@ def getpsuedomail(email):
   return mappedmail
 
 def populate_from_addresses(ev, msg, keys):
+    isreplymail = False
     #msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
     if 'inbound' in ev['msg']['from_email']:
         msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
+        isreplymail = True
     else:
         emailaddress = getpsuedomail(ev['msg']['from_email'])
         msg['From'] = email.utils.formataddr((ev['msg']['from_name'], emailaddress))
+    
+    return isreplymail
 
 def populate_to_addresses(ev, msg, keys):
     rcptslist = list()
