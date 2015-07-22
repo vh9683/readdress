@@ -214,11 +214,17 @@ def decode_mail(ev):
         print("To Header: {}".format(toheaders))
         print("CC Header: {}".format(ccheaders))
         
+        actualmsg = None
         actualmsg = msg
         actualmsg['To'] = toheaders
         actualmsg['Cc'] = ccheaders
 
         sendmail(ev, actualmsg, mailid)
+        #del actualmsg['Message-Id'] 
+        #del actualmsg['To'] 
+        #del actualmsg['Cc'] 
+        del msg['To'] 
+        del msg['Cc'] 
         del actualmsg
         del todup 
         del ccdup 
