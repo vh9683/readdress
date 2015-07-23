@@ -232,7 +232,7 @@ def decode_mail(ev):
             #from_address = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).encode('ascii')
 
     if inreplyto:
-        msg.add_header("In-Reply-To", ActualMessageId)
+        #msg.add_header("In-Reply-To", ActualMessageId)
         torcpts, toactuallist = populate_to_addresses_RAT(ev, msg, keys)
         ccrcpts, ccactuallist = populate_cc_addresses_RAT(ev, msg, keys)
         print("TO RCPT {}".format(torcpts))
@@ -246,9 +246,10 @@ def decode_mail(ev):
         REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
         print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
         print ("header {} ".format(ev['msg']['headers']['Message-Id']))
-        msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+        #msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+        msg.add_header("In-Reply-To", REPLY_TO_ADDRESS)
 
-
+        msg['X-MC-BccAddress'] = 'h.badari@gmail.com'
         allrecipients = torcpts + ccrcpts
         for mailid in allrecipients:
             arcpts = list(allrecipients)
@@ -445,6 +446,8 @@ def sendmail(ev, msg, to):
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         print ('RCPT : {}'.format(to))
+        msg['X-MC-ReturnPathDomain'] = 'returnpath@inbound.edulead.in'
+        msg['Disposition-Notification-To'] = 'dispositionNotification123@inbound.edulead.in'
 
         composed = msg.as_string()
         print ("ACTUAL MSG \n {} \n".format(composed))
