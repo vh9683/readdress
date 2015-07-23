@@ -34,54 +34,61 @@ class RecvHandler(tornado.web.RequestHandler):
     self.finish()
     return
 
-  def isourdomain(a):
+  def isourdomain(self, a):
     domain = a.split('@')
     if domain[-1] == OUR_DOMAIN:
       return True
     return False
 
   @coroutine
-  def getmapaddr(a,rev=False):
+  def getmapaddr(self, a,rev=False):
     inbounddb = self.settings['inbounddb']
-    if isourdomain(a):
+    if self.isourdomain(a):
       user = yield inbounddb.users.find_one({'mapped': a})
       if not user:
+        gen_log.info('user not found ' + a)
         return None
       elif rev:
+        gen_log.info('user found, returning actual ' + user['actual'])
         return user['actual']
       else:
+        gen_log.info('user found, returning mapped ' + user['mapped'])
         return user['mapped']
     else:
       user = yield inbounddb.users.find_one({'actual': a})
       if not user:
         mapped = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')+'@'+OUR_DOMAIN
         yield inbounddb.users.insert({'mapped': mapped, 'actual': a})
+        gen_log.info('insterted new ext user ' + a + ' -> ' + mapped)
         return mapped
       else:
+        gen_log.info('ext user found, returning mapped ' + user['mapped'])
         return user['mapped']
 
   @coroutine
-  def mapaddrlist(li):
+  def mapaddrlist(self, li):
     rli = []
+    gen_log.info('mapaddrlist li ' + str(li))
     for x in li:
-      mapped = yield getmapaddr(x[0])
+      mapped = yield self.getmapaddr(x[0])
       if not mapped:
         continue
       if x[1]:
         rli.append(email.utils.formataddr((x[1],mapped)))
       else:
         rli.append(mapped)
+    gen_log.info('mapaddrlist rli ' + str(rli))
     return rli
 
   @coroutine
-  def populate_from_addresses(ev, msg):
-      mapped = yield getmapaddr(ev['msg']['from_email'])
+  def populate_from_addresses(self, ev, msg):
+      mapped = yield self.getmapaddr(ev['msg']['from_email'])
       if not mapped:
         return False
       msg['From'] = email.utils.formataddr((ev['msg']['from_name'], mapped))
       return True
 
-  def updateAttachments(ev, msg, keys):
+  def updateAttachments(self, ev, msg, keys):
       if 'attachments' in keys:
         for name,attachment in ev['msg']['attachments'].items():
           file_name = attachment['name']
@@ -119,7 +126,7 @@ class RecvHandler(tornado.web.RequestHandler):
           part.add_header('Content-Disposition', 'attachment', filename=file_name)
           msg.attach(img)
 
-  def updatemail(ev, msg, keys):
+  def updatemail(self, ev, msg, keys):
       msg['Subject'] = ev['msg']['subject']
       text = ev['msg']['text']
       html = ev['msg']['html']
@@ -128,9 +135,9 @@ class RecvHandler(tornado.web.RequestHandler):
       msg.attach(part1)
       msg.attach(part2)
 
-      updateAttachments(ev, msg, keys)
+      self.updateAttachments(ev, msg, keys)
 
-  def sendmail(ev, msg, to):
+  def sendmail(self, ev, msg, to):
     server = smtplib.SMTP('smtp.mandrillapp.com', 587)
     try:
       server.set_debuglevel(True)
@@ -173,7 +180,7 @@ class RecvHandler(tornado.web.RequestHandler):
       if ev['msg']['spam_report']['score'] >= 5:
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
-        gen_log.info('subject: ' + ev'msg']['subject'])
+        gen_log.info('subject: ' + ev['msg']['subject'])
         gen_log.info('text part: ' + ev['msg']['text'])
         gen_log.info('html part: ' + ev['msg']['html'])
         gen_log.info('from: ' + ev['msg']['from_email'])
@@ -209,9 +216,9 @@ class RecvHandler(tornado.web.RequestHandler):
             gen_log.info('image base64 ' + str(image['base64']))
 
         msg = MIMEMultipart('alternative')
-        updatemail(ev, msg, keys)
+        self.updatemail(ev, msg, keys)
         msg['X-MC-PreserveRecipients'] = 'true'
-        success = yield populate_from_addresses(ev, msg)
+        success = yield self.populate_from_addresses(ev, msg)
         if not success:
           gen_log.info('Error adding from address')
           self.set_status(200)
@@ -231,19 +238,21 @@ class RecvHandler(tornado.web.RequestHandler):
           allrecipients = allrecipients + ev['msg']['cc']
 
         for mailid in allrecipients:
-          if not isourdomain(mailid[0]):
+          if not self.isourdomain(mailid[0]):
             continue
-          rto = yield mapaddrlist(allrecipients)
-          rto.remove(mailid[0])
-          msg['To'] = ','.join(rto)
-          mapped = yield getmapaddr(mailid[0],True)
+          rto = yield self.mapaddrlist(allrecipients)
+          mapped = yield self.getmapaddr(mailid[0],True)
           if not mapped:
             continue
           if mailid[1]:
             recepient = email.utils.formataddr((mailid[1],mapped))
+            tremove = email.utils.formataddr((mailid[1],mailid[0]))
           else:
             recepient = mapped
-          sendmail(ev, msg, recepient)
+            tremove = mapped
+          rto.remove(tremove)
+          msg['To'] = ','.join(rto)
+          self.sendmail(ev, msg, recepient)
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
