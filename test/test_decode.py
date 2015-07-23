@@ -38,19 +38,21 @@ def print_dict(dic, name):
     indent += 1
 '''
 
+ActualMessageId="<CAKGdyq7ePMXh-UkDxyabRKkoTBA70NkPLNRrmfUXmh4n4ai5Ag@mail.gmail.com>"
+
 mapper = dict()
 mapper['9686111887@inbound.edulead.in'] = 'badariprasad.h@gmail.com'
 mapper["9845837392@inbound.edulead.in"] = 'badari.hp@outlook.com'
 mapper["badari.hp@inbound.edulead.in"]  = 'badari.ph@gmail.com'
 mapper['harish@inbound.edulead.in']     = 'harish.v.murthy@gmail.com'
-mapper['testingmail@inbound.edulead.in']= 'badari.hp@gmail.com'
+#mapper['testingmail@inbound.edulead.in']= 'badari.hp@gmail.com'
 
 reversemap = dict()
 reversemap['badariprasad.h@gmail.com']  = '9686111887@inbound.edulead.in'
 reversemap['badari.hp@outlook.com']     = "9845837392@inbound.edulead.in"
 reversemap['badari.ph@gmail.com']       = "badari.hp@inbound.edulead.in"
 reversemap['harish.v.murthy@gmail.com'] = 'harish@inbound.edulead.in'
-reversemap['badari.hp@gmail.com']       = 'testingmail@inbound.edulead.in'
+#reversemap['badari.hp@gmail.com']       = 'testingmail@inbound.edulead.in'
 
 
 def lookup(email):
@@ -61,19 +63,18 @@ def getpsuedomail(email):
   mappedmail =  reversemap.get(email) 
   return mappedmail
 
-def populate_from_addresses(ev, msg, keys):
-    isreplymail = False
-    #msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
+def populate_from_addresses_FAT(ev, msg, keys):
     if 'inbound' in ev['msg']['from_email']:
-        msg['From'] = email.utils.formataddr((ev['msg']['from_name'], ev['msg']['from_email']))
-        isreplymail = True
+        emailaddress = ev['msg']['from_email']
+        raise ValueError("From Email cannot be inboud address {}".format(emailaddress))
     else:
-        emailaddress = getpsuedomail(ev['msg']['from_email'])
-        msg['From'] = email.utils.formataddr((ev['msg']['from_name'], emailaddress))
+        emailaddress =  '12345@inbound.edulead.in'
+        msg['From'] = email.utils.formataddr((ev['msg']['from_name'] + ' <' + ev['msg']['from_email']+'>', emailaddress))
     
-    return isreplymail
+    emailaddress = ev['msg']['from_email']
+    return emailaddress
 
-def populate_to_addresses(ev, msg, keys):
+def populate_to_addresses_FAT(ev, msg, keys):
     rcptslist = list()
     actuallist = list()
     #toaddresses =""
@@ -101,7 +102,7 @@ def populate_to_addresses(ev, msg, keys):
     #msg['To'] = toaddresses + 'testingloop@inbound.edulead.in'
     return rcptslist, actuallist
 
-def populate_cc_addresses(ev, msg, keys):
+def populate_cc_addresses_FAT(ev, msg, keys):
     rcptslist = list()
     actuallist = list()
     ccaddresses = ""
@@ -145,6 +146,50 @@ def populate_cc_addresses(ev, msg, keys):
 
     return rcptslist, actuallist
 
+def populate_to_addresses_RAT(ev, msg, keys):
+    rcptslist = list()
+    actuallist = list()
+    if 'to' in keys:
+      for to,toname in ev['msg']['to']:
+        mto = ""
+        if toname and 'inbound' in to:
+            match = re.search('([\w.-]+)@([\w.-]+)', toname)
+            if match is not None:
+                mto = match.group()
+                actuallist.append(mto)
+            else:
+                mto = lookup(to)
+                actuallist.append(to)
+        else:
+            mto = lookup(to)
+            actuallist.append(to)
+        rcptslist.append(mto)
+
+    return rcptslist, actuallist
+
+def populate_cc_addresses_RAT(ev, msg, keys):
+    rcptslist = list()
+    actuallist = list()
+    ccaddresses = ""
+    if 'cc' in keys:
+      for cc,ccname in ev['msg']['cc']:
+        mcc = ""
+        if ccname and 'inbound' in cc :
+            match = re.search('([\w.-]+)@([\w.-]+)', ccname)
+            if match is not None:
+                mcc = match.group()
+                actuallist.append(mcc)
+            else:
+                mcc = lookup(cc)
+                actuallist.append(cc)
+        else:
+            mcc = lookup(cc)
+            actuallist.append(cc)
+
+        rcptslist.append(mcc)
+
+    return rcptslist, actuallist
+
 def decode_mail(ev):
   print ("TYPE EV : {}".format(type(ev)))
   if ev['msg']['spam_report']['score'] >= 5:
@@ -178,62 +223,161 @@ def decode_mail(ev):
     msg = MIMEMultipart('alternative')
     updatemail(ev, msg, keys)
     msg['X-MC-PreserveRecipients'] = 'true'
-    populate_from_addresses(ev, msg, keys)
-    torcpts, toactuallist = populate_to_addresses(ev, msg, keys)
-    msg['Comments'] = ','.join(torcpts)
-    msg['Keywords'] = ','.join(torcpts)
-    msg['X-MC-Metadata'] = '{ "trans_id": "123" }'
-    ccrcpts,ccactuallist = populate_cc_addresses(ev, msg, keys)
-    #rcptslist = torcpts + ccrcpts 
-    print ("TO : {}".format(torcpts))
-    print ("ATO : {}".format(toactuallist))
 
-    REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
-    REPLY_TO_ADDRESS = REPLY_TO_ADDRESS + '@inbound.edulead.in'
-    print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
-    msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+    inreplyto = None
+    if 'In-Reply-To' in ev['msg']['headers']:
+        inreplyto = ev['msg']['headers']['In-Reply-To']
+        if inreplyto:
+            print ("inreplyto {}".format(inreplyto))
+            #from_address = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).encode('ascii')
 
-    allrecipients = torcpts + ccrcpts
-    print('\n')
-    for mailid in allrecipients:
-        arcpts = list(allrecipients)
-        todup = list(toactuallist)
-        ccdup = list(ccactuallist)
-        mailidx = torcpts.index(mailid)
-        print ("mailidx : {}".format(mailidx))
-        toremovemail = todup[mailidx]
-        print ("to recipient : {} toremovemail: {}".format(mailid, toremovemail))
-        if toremovemail is not None:
-            todup.remove(toremovemail)
-        elif ccdup is not None:
-            ccremovemail = ccdup[mailidx]
-            print ("ccrcpt : {} cremovemail :{}".format(mailid, ccremovemail))
-            ccdup.remove(ccremovemail)
-            
-        toremovemail = None
-        ccremovemail = None
-        toheaders = ','.join(todup) 
-        ccheaders = '.'.join(ccdup)
+    if inreplyto:
+        #msg.add_header("In-Reply-To", ActualMessageId)
+        torcpts, toactuallist = populate_to_addresses_RAT(ev, msg, keys)
+        ccrcpts, ccactuallist = populate_cc_addresses_RAT(ev, msg, keys)
+        print("TO RCPT {}".format(torcpts))
+        print("TO ACTUAL {}".format(toactuallist))
+        if ccrcpts:
+            print("CC RCPT {}".format(ccrcpts))
+        if ccactuallist:
+            print("CC ACTUAL {}".format(ccactuallist))
 
-        print("To Header: {}".format(toheaders))
-        print("CC Header: {}".format(ccheaders))
+        REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
+        REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
+        print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+        print ("header {} ".format(ev['msg']['headers']['Message-Id']))
+        #msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+        msg.add_header("In-Reply-To", REPLY_TO_ADDRESS)
+
+        msg['X-MC-BccAddress'] = 'h.badari@gmail.com'
+        allrecipients = torcpts + ccrcpts
+        for mailid in allrecipients:
+            arcpts = list(allrecipients)
+            todup = list(toactuallist)
+            ccdup = list(ccactuallist)
+
+            if todup is not None and mailid in torcpts:
+                mailidx = torcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                toremovemail = todup[mailidx]
+                print ("to recipient : {} toremovemail: {}".format(mailid, toremovemail))
+                if toremovemail is not None:
+                    todup.remove(toremovemail)
+            elif ccdup is not None and mailid in ccrcpts:
+                mailidx = ccrcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                ccremovemail = ccdup[mailidx]
+                print ("ccrcpt : {} ccremovemail :{}".format(mailid, ccremovemail))
+                ccdup.remove(ccremovemail)
+
+            toremovemail = None
+            ccremovemail = None
         
-        actualmsg = None
-        actualmsg = msg
-        actualmsg['To'] = toheaders
-        actualmsg['Cc'] = ccheaders
+            alladdresses = todup + ccdup
+            #toheaders = ','.join(todup) 
+            #ccheaders = ','.join(ccdup)
 
-        sendmail(ev, actualmsg, mailid)
-        #del actualmsg['Message-Id'] 
-        #del actualmsg['To'] 
-        #del actualmsg['Cc'] 
-        del msg['To'] 
-        del msg['Cc'] 
-        del actualmsg
-        del todup 
-        del ccdup 
-        del toheaders, ccheaders 
-        print ("sent mail successfully")
+            actualmsg = None
+            actualmsg = msg
+
+            if len(alladdresses) > 5:
+                toheaders = ','.join(alladdresses[0:5:1])
+                ccheaders = ','.join(alladdresses[5:])
+                actualmsg['To'] = toheaders
+                actualmsg['Cc'] = ccheaders
+            else:
+                toheaders = ','.join(alladdresses)
+                actualmsg['To'] = toheaders
+
+            print("To Header: {}".format(actualmsg['To']))
+            print("CC Header: {}".format(actualmsg['Cc']))
+        
+            sendmail(ev, actualmsg, mailid)
+            del msg['To'] 
+            del msg['Cc'] 
+            del actualmsg
+            del todup 
+            del ccdup 
+            #del toheaders, ccheaders 
+            print ("sent mail successfully")
+
+
+
+    if not inreplyto: #received a new mail
+        from_email = populate_from_addresses_FAT(ev, msg, keys)
+        torcpts, toactuallist = populate_to_addresses_FAT(ev, msg, keys)
+        msg['Comments'] = ','.join(torcpts)
+        msg['Keywords'] = ','.join(torcpts)
+        msg['X-MC-Metadata'] = '{ "trans_id": "123" }'
+        ccrcpts,ccactuallist = populate_cc_addresses_FAT(ev, msg, keys)
+        #rcptslist = torcpts + ccrcpts 
+        print ("FROM_EMAL : {}".format(from_email))
+        print ("TO : {}".format(torcpts))
+        print ("ATO : {}".format(toactuallist))
+        if ccrcpts: 
+            print ("CC : {}".format(ccrcpts))
+        if ccactuallist:
+            print ("ACC : {}".format(ccactuallist))
+
+        REPLY_TO_ADDRESS = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')
+        REPLY_TO_ADDRESS = '<' + REPLY_TO_ADDRESS + '@inbound.edulead.in' + '>'
+        print('REPLY_TO_ADDRESS : {}'.format(REPLY_TO_ADDRESS))
+        print ("header {} ".format(ev['msg']['headers']['Message-Id']))
+
+        msg.add_header("Message-Id", REPLY_TO_ADDRESS)
+
+        allrecipients = torcpts + ccrcpts
+        print('\n')
+
+        for mailid in allrecipients:
+            arcpts = list(allrecipients)
+            todup = list(toactuallist)
+            ccdup = list(ccactuallist)
+
+            if todup is not None and mailid in torcpts:
+                mailidx = torcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                toremovemail = todup[mailidx]
+                print ("to recipient : {} toremovemail: {}".format(mailid, toremovemail))
+                if toremovemail is not None:
+                    todup.remove(toremovemail)
+            elif ccdup is not None and mailid in ccrcpts:
+                mailidx = ccrcpts.index(mailid)
+                print ("mailidx : {}".format(mailidx))
+                ccremovemail = ccdup[mailidx]
+                print ("ccrcpt : {} ccremovemail :{}".format(mailid, ccremovemail))
+                ccdup.remove(ccremovemail)
+
+            toremovemail = None
+            ccremovemail = None
+        
+            alladdresses = todup + ccdup
+            #toheaders = ','.join(todup) 
+            #ccheaders = ','.join(ccdup)
+
+            actualmsg = None
+            actualmsg = msg
+
+            if len(alladdresses) > 5:
+                toheaders = ','.join(alladdresses[0:5:1])
+                ccheaders = ','.join(alladdresses[5:])
+                actualmsg['To'] = toheaders
+                actualmsg['Cc'] = ccheaders
+            else:
+                toheaders = ','.join(alladdresses)
+                actualmsg['To'] = toheaders
+
+            print("To Header: {}".format(actualmsg['To']))
+            print("CC Header: {}".format(actualmsg['Cc']))
+        
+            sendmail(ev, actualmsg, mailid)
+            del msg['To'] 
+            del msg['Cc'] 
+            del actualmsg
+            del todup 
+            del ccdup 
+            #del toheaders, ccheaders 
+            print ("sent mail successfully")
 
 def updateAttachments(ev, msg, keys):
     if 'attachments' in keys:
@@ -281,7 +425,6 @@ def updatemail(ev, msg, keys):
     part2 = MIMEText(html, 'html')
     msg.attach(part1)
     msg.attach(part2)
-
     updateAttachments(ev, msg, keys)
 
     
@@ -303,6 +446,8 @@ def sendmail(ev, msg, to):
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         print ('RCPT : {}'.format(to))
+        msg['X-MC-ReturnPathDomain'] = 'returnpath@inbound.edulead.in'
+        msg['Disposition-Notification-To'] = 'dispositionNotification123@inbound.edulead.in'
 
         composed = msg.as_string()
         print ("ACTUAL MSG \n {} \n".format(composed))
