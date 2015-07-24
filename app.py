@@ -212,7 +212,7 @@ class RecvHandler(tornado.web.RequestHandler):
       localtime = time.asctime( time.localtime(time.time()) )
       localtime = localtime.replace(' ', '_')
       localtime = localtime.replace(':', '_')
-      jsonfile='Json_mail_' + localtime + '.txt'
+      jsonfile='/tmp/inbound/Json_mail_' + localtime + '.txt'
       with open(jsonfile, 'w') as outfile:
           outfile.write(str(ev))
           outfile.close()
