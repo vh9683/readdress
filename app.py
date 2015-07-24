@@ -86,6 +86,7 @@ class RecvHandler(tornado.web.RequestHandler):
       if not mapped:
         return False
       msg['From'] = email.utils.formataddr((ev['msg']['from_name'], mapped))
+      gen_log.info('From: ' + str(msg['From']))
       return True
 
   def updateAttachments(self, ev, msg, keys):
@@ -154,7 +155,6 @@ class RecvHandler(tornado.web.RequestHandler):
       gen_log.info('RCPT : {}'.format(to))
 
       composed = msg.as_string()
-      gen_log.info("ACTUAL MSG \n {} \n".format(composed))
       server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
       server.quit()
@@ -166,7 +166,6 @@ class RecvHandler(tornado.web.RequestHandler):
     if not ev:
       pass
     else:
-      gen_log.info('mandrill_events ' + str(ev))
       localtime = time.asctime( time.localtime(time.time()) )
       localtime = localtime.replace(' ', '_')
       localtime = localtime.replace(':', '_')
@@ -181,8 +180,6 @@ class RecvHandler(tornado.web.RequestHandler):
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
         gen_log.info('subject: ' + ev['msg']['subject'])
-        gen_log.info('text part: ' + ev['msg']['text'])
-        gen_log.info('html part: ' + ev['msg']['html'])
         gen_log.info('from: ' + ev['msg']['from_email'])
         gen_log.info('From: ' + ev['msg']['from_name'])
         gen_log.info("===================================================================")
@@ -251,7 +248,12 @@ class RecvHandler(tornado.web.RequestHandler):
             recepient = mapped
             tremove = mapped
           rto.remove(tremove)
-          msg['To'] = ','.join(rto)
+          if msg['From'] in rto:
+            rto.remove(msg['From'])
+          if 'Cc' in msg:
+            del msg['Cc']
+          gen_log.info('Cc: ' + str(rto))
+          msg['Cc'] = ','.join(rto)
           self.sendmail(ev, msg, recepient)
     self.set_status(200)
     self.write({'status': 200})
