@@ -7,6 +7,7 @@ import smtplib
 import uuid
 import base64
 import mimetypes
+import re
 import email.utils
 from email import encoders
 from email.message import Message
@@ -19,6 +20,7 @@ from email.headerregistry import Address
 from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
+from itertools import ifilter
 
 OUR_DOMAIN = 'inbound.edulead.in'
 
@@ -34,14 +36,52 @@ class RecvHandler(tornado.web.RequestHandler):
     self.finish()
     return
 
+  def getdomain(self,a):
+    return a.split('@')[-1]
+
   def isourdomain(self, a):
-    domain = a.split('@')
-    if domain[-1] == OUR_DOMAIN:
+    return self.getdomain(a) == OUR_DOMAIN:
+
+  @coroutine
+  def isknowndomain(self,a):
+    if self.isourdomain(a):
       return True
+    inbounddb = self.settings['inbounddb']
+    known = yield inbounddb.domains.find_one({'domain': self.getdomain(a)})
+    if not known:
+      return False
+    return True
+
+  @coroutine  
+  def isregistereduser(self,a):
+    """ check whether the user address is a registered one or generated one based on patter """
+    if self.isourdomain(a):
+      user = yield self.getmapaddr(a,True)
+    else:
+      user = yield self.getmapaddr(a,False,False)
+    if user:
+        return True
     return False
 
   @coroutine
-  def getmapaddr(self, a,rev=False):
+  def validthread(self,ev,allrecipients):
+    """ If In-Reply-To is not present, then it is assumed to be new thread
+        In such a case, the from address has to be from known domain
+        and allrecipients must have at least one registered user
+    """
+    if 'In-Reply-To' not in ev['msg']['headers']:
+      from_email = ev['msg']['from_email']
+      if not self.isknowndomain(from_email):
+        return False
+      for id,name in allrecipients:
+        success = yield self.isregistereduser(id)
+        if success:
+          return True
+      return False
+    return True
+
+  @coroutine
+  def getmapaddr(self, a,rev=False,insert=True):
     inbounddb = self.settings['inbounddb']
     if self.isourdomain(a):
       user = yield inbounddb.users.find_one({'mapped': a})
@@ -56,14 +96,17 @@ class RecvHandler(tornado.web.RequestHandler):
         return user['mapped']
     else:
       user = yield inbounddb.users.find_one({'actual': a})
-      if not user:
+      if not user and insert:
         mapped = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')+'@'+OUR_DOMAIN
         yield inbounddb.users.insert({'mapped': mapped, 'actual': a})
         gen_log.info('insterted new ext user ' + a + ' -> ' + mapped)
         return mapped
-      else:
+      elif user:
         gen_log.info('ext user found, returning mapped ' + user['mapped'])
         return user['mapped']
+      else:
+        gen_log.info('ext user not found, not told to insert ' + a)
+        return None
 
   @coroutine
   def mapaddrlist(self, li):
@@ -164,7 +207,7 @@ class RecvHandler(tornado.web.RequestHandler):
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
     if not ev:
-      pass
+      raise ValueError
     else:
       localtime = time.asctime( time.localtime(time.time()) )
       localtime = localtime.replace(' ', '_')
@@ -211,29 +254,31 @@ class RecvHandler(tornado.web.RequestHandler):
             gen_log.info('image name ' + image['name'])
             gen_log.info('image type ' + image['type'])
             gen_log.info('image base64 ' + str(image['base64']))
-
+        
+        allrecipients = ev['msg']['to']
+        if 'cc' in ev['msg']:
+          allrecipients = allrecipients + ev['msg']['cc']
+        
+        success = self.validthread(ev,allrecipients)
+        if not success:
+          gen_log.info("Not a valid mail thread!!, dropping...")
+          raise ValueError
+        
         msg = MIMEMultipart('alternative')
         self.updatemail(ev, msg, keys)
         msg['X-MC-PreserveRecipients'] = 'true'
         success = yield self.populate_from_addresses(ev, msg)
         if not success:
           gen_log.info('Error adding from address')
-          self.set_status(200)
-          self.write({'status': 200})
-          self.finish()
-          return
-
+          raise ValueError
+                
         if 'Message-Id' in ev['msg']['headers']:
           msg.add_header("Message-Id", ev['msg']['headers']['Message-Id'])
         if 'In-Reply-To' in ev['msg']['headers']:
           msg.add_header("In-Reply-To", ev['msg']['headers']['In-Reply-To'])
         if 'References' in ev['msg']['headers']:
           msg.add_header("References", ev['msg']['headers']['References'])
-
-        allrecipients = ev['msg']['to']
-        if 'cc' in ev['msg']:
-          allrecipients = allrecipients + ev['msg']['cc']
-
+                
         for mailid in allrecipients:
           if not self.isourdomain(mailid[0]):
             continue
@@ -271,9 +316,12 @@ logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
 
+reguser = re.compile('^[0-9]{8,16}@'+OUR_DOMAIN)
+
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
+            "reguser": reguser,
 }
 
 application = tornado.web.Application([
