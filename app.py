@@ -250,10 +250,10 @@ class RecvHandler(tornado.web.RequestHandler):
           rto.remove(tremove)
           if msg['From'] in rto:
             rto.remove(msg['From'])
-          if 'Cc' in msg:
-            del msg['Cc']
-          gen_log.info('Cc: ' + str(rto))
-          msg['Cc'] = ','.join(rto)
+          if 'To' in msg:
+            del msg['To']
+          gen_log.info('To: ' + str(rto))
+          msg['To'] = ','.join(rto)
           self.sendmail(ev, msg, recepient)
     self.set_status(200)
     self.write({'status': 200})
