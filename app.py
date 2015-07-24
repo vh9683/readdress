@@ -20,7 +20,6 @@ from email.headerregistry import Address
 from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
-from itertools import ifilter
 
 OUR_DOMAIN = 'inbound.edulead.in'
 
@@ -40,7 +39,7 @@ class RecvHandler(tornado.web.RequestHandler):
     return a.split('@')[-1]
 
   def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN:
+    return self.getdomain(a) == OUR_DOMAIN
 
   @coroutine
   def isknowndomain(self,a):
@@ -52,16 +51,9 @@ class RecvHandler(tornado.web.RequestHandler):
       return False
     return True
 
-  @coroutine  
   def isregistereduser(self,a):
     """ check whether the user address is a registered one or generated one based on patter """
-    if self.isourdomain(a):
-      user = yield self.getmapaddr(a,True)
-    else:
-      user = yield self.getmapaddr(a,False,False)
-    if user:
-        return True
-    return False
+    return self.settings['reguser'].fullmatch(a)
 
   @coroutine
   def validthread(self,ev,allrecipients):
@@ -71,11 +63,14 @@ class RecvHandler(tornado.web.RequestHandler):
     """
     if 'In-Reply-To' not in ev['msg']['headers']:
       from_email = ev['msg']['from_email']
-      if not self.isknowndomain(from_email):
+      success = yield self.isknowndomain(from_email)
+      if not success:
         return False
       for id,name in allrecipients:
-        success = yield self.isregistereduser(id)
-        if success:
+        success = self.isregistereduser(id)
+        if success is None:
+          return False
+        else:
           return True
       return False
     return True
@@ -259,7 +254,7 @@ class RecvHandler(tornado.web.RequestHandler):
         if 'cc' in ev['msg']:
           allrecipients = allrecipients + ev['msg']['cc']
         
-        success = self.validthread(ev,allrecipients)
+        success = yield self.validthread(ev,allrecipients)
         if not success:
           gen_log.info("Not a valid mail thread!!, dropping...")
           raise ValueError
