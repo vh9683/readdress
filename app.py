@@ -239,6 +239,8 @@ class RecvHandler(tornado.web.RequestHandler):
         gen_log.info("===================================================================")
         gen_log.info('Headers: ' , ev['msg']['headers'])
         gen_log.info("===================================================================")
+        
+        yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':ev} )
 
         keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
 
