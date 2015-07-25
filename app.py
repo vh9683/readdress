@@ -209,6 +209,7 @@ class RecvHandler(tornado.web.RequestHandler):
       gen_log.info('RCPT : {}'.format(to))
 
       composed = msg.as_string()
+      gen_log.info('Actual Msg : {}'.format(composed))
       server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
       server.quit()
@@ -316,16 +317,26 @@ class RecvHandler(tornado.web.RequestHandler):
 
           if msg['X-MC-BccAddress']:
             del msg['X-MC-BccAddress']
+          #Only From address is being checked for LI as of now.
+          #Mandrill has problem sending CSV X-MC-BccAddress / multiple X-MC-BccAddress addresses
+          '''
+          liemail = None
           liemail = yield self.isUserEmailTaggedForLI(mapped)
-          gen_log.info('li tagged is ' + str(liemail))
           if liemail:
             msg['X-MC-BccAddress'] = liemail
+          '''
+
+          #  msg['X-MC-BccAddress'] = liemail
+          liemail = None
           liemail = yield self.isUserEmailTaggedForLI(ev['msg']['from_email'])
           if liemail:
             msg['X-MC-BccAddress'] = liemail
+            
+          gen_log.info('li tagged is ' + msg['X-MC-BccAddress'])
 
           self.sendmail(ev, msg, recepient)
           del msg['X-MC-BccAddress']
+          del liemail
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
