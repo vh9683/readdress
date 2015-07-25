@@ -61,12 +61,12 @@ class RecvHandler(tornado.web.RequestHandler):
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': a})
     #Value could be Law agency email id 
-    if user and user['tagged']: 
+    if user and 'tagged' in user:
         return user['tagged']
     else:
       user = yield inbounddb.users.find_one({'mapped': a})
       #Value could be Law agency email id 
-      if user and user['tagged']: 
+      if user and 'tagged' in user: 
         return user['tagged']
 
     return None
@@ -240,7 +240,7 @@ class RecvHandler(tornado.web.RequestHandler):
         gen_log.info('Headers: ' , ev['msg']['headers'])
         gen_log.info("===================================================================")
         
-        yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':ev} )
+        #yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':ev} )
 
         keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
 
@@ -305,7 +305,6 @@ class RecvHandler(tornado.web.RequestHandler):
           else:
             recepient = mapped
             tremove = mapped
-
           if tremove in rto:
             rto.remove(tremove)
           if msg['From'] in rto:
@@ -317,11 +316,16 @@ class RecvHandler(tornado.web.RequestHandler):
 
           if msg['X-MC-BccAddress']:
             del msg['X-MC-BccAddress']
-          liemail = self.isUserEmailTaggedForLI(recepient)
+          liemail = yield self.isUserEmailTaggedForLI(mapped)
+          gen_log.info('li tagged is ' + str(liemail))
+          if liemail:
+            msg['X-MC-BccAddress'] = liemail
+          liemail = yield self.isUserEmailTaggedForLI(ev['msg']['from_email'])
           if liemail:
             msg['X-MC-BccAddress'] = liemail
 
           self.sendmail(ev, msg, recepient)
+          del msg['X-MC-BccAddress']
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
