@@ -312,9 +312,9 @@ class RecvHandler(tornado.web.RequestHandler):
 
           if msg['X-MC-BccAddress']:
             del msg['X-MC-BccAddress']
-            liemail = isUserEmailTaggedForLI(recepient)
-            if liemail:
-              msg['X-MC-BccAddress'] = liemail
+          liemail = isUserEmailTaggedForLI(recepient)
+          if liemail:
+            msg['X-MC-BccAddress'] = liemail
 
           self.sendmail(ev, msg, recepient)
     self.set_status(200)
