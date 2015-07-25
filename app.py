@@ -305,7 +305,9 @@ class RecvHandler(tornado.web.RequestHandler):
           else:
             recepient = mapped
             tremove = mapped
-          rto.remove(tremove)
+
+          if tremove in rto:
+            rto.remove(tremove)
           if msg['From'] in rto:
             rto.remove(msg['From'])
           if 'To' in msg:
