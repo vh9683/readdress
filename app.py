@@ -55,6 +55,7 @@ class RecvHandler(tornado.web.RequestHandler):
     """ check whether the user address is a registered one or generated one based on patter """
     return self.settings['reguser'].fullmatch(a)
 
+  @coroutine
   def isUserEmailTaggedForLI(self, a):
     """ Check if the user address is tagged for LI """
     inbounddb = self.settings['inbounddb']
@@ -312,7 +313,7 @@ class RecvHandler(tornado.web.RequestHandler):
 
           if msg['X-MC-BccAddress']:
             del msg['X-MC-BccAddress']
-          liemail = isUserEmailTaggedForLI(recepient)
+          liemail = self.isUserEmailTaggedForLI(recepient)
           if liemail:
             msg['X-MC-BccAddress'] = liemail
 
