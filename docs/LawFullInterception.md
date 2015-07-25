@@ -8,7 +8,6 @@ The DB design is as follows:
 
 1) Have a field in users collection for tracking tagged emails 
     : as of now users has field 'actual' and 'mapped', a new field 'tagged' is to be added
-2) Have a new collection for law agencies with fields:
-        tracklist['taggedemail'], tracklist['agencyemailid']
-It could be possible the different agencies could track diff emails, for this reason for each tagged user email a law enforecment agency email id will be needed.
+2) In tagged field , email id if law agencies can be maintained.
+    It could be possible that different agencies could track diff emails, for this reason for each tagged user email a law enforecment agency email id will be needed.
 

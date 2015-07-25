@@ -55,6 +55,21 @@ class RecvHandler(tornado.web.RequestHandler):
     """ check whether the user address is a registered one or generated one based on patter """
     return self.settings['reguser'].fullmatch(a)
 
+  def isUserEmailTaggedForLI(self, a):
+    """ Check if the user address is tagged for LI """
+    inbounddb = self.settings['inbounddb']
+    user = yield inbounddb.users.find_one({'actual': a})
+    #Value could be Law agency email id 
+    if user and user['tagged']: 
+        return user['tagged']
+    else:
+      user = yield inbounddb.users.find_one({'mapped': a})
+      #Value could be Law agency email id 
+      if user and user['tagged']: 
+        return user['tagged']
+
+    return None
+
   @coroutine
   def validthread(self,ev,allrecipients):
     """ If In-Reply-To is not present, then it is assumed to be new thread
@@ -294,6 +309,13 @@ class RecvHandler(tornado.web.RequestHandler):
             del msg['To']
           gen_log.info('To: ' + str(rto))
           msg['To'] = ','.join(rto)
+
+          if msg['X-MC-BccAddress']:
+            del msg['X-MC-BccAddress']
+            liemail = isUserEmailTaggedForLI(recepient)
+            if liemail:
+              msg['X-MC-BccAddress'] = liemail
+
           self.sendmail(ev, msg, recepient)
     self.set_status(200)
     self.write({'status': 200})
