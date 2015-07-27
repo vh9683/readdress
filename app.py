@@ -6,6 +6,7 @@ import time
 import smtplib
 import uuid
 import mimetypes
+import pickle
 import email.utils
 from email import encoders
 from email.message import Message
@@ -19,6 +20,7 @@ from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
 from bson import Binary
+from redis import StrictRedis
 
 
 OUR_DOMAIN = 'inbound.edulead.in'
@@ -71,16 +73,12 @@ class RecvHandler(tornado.web.RequestHandler):
 
   def isregistereduser(self,a):
     """ check whether the user address is a registered one or generated one """
-    return not valid_uuid4(a)
+    return not self.valid_uuid4(a)
 
   @coroutine
   def isUserEmailTaggedForLI(self, a):
     """ Check if the user address is tagged for LI """
-    inbounddb = self.settings['inbounddb']
-    if not self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'actual': a})
-    else:
-      user = yield inbounddb.users.find_one({'mapped': a})
+    user = yield self.getuser(a)
     if user and 'tagged' in user: 
       return user['tagged']
     return None
@@ -102,39 +100,43 @@ class RecvHandler(tornado.web.RequestHandler):
     return False
 
   @coroutine
-  def getmapaddr(self, a,rev=False,insert=True):
+  def getuser(self,a):
     inbounddb = self.settings['inbounddb']
     if self.isourdomain(a):
       user = yield inbounddb.users.find_one({'mapped': a})
-      if not user:
-        gen_log.info('user not found ' + a)
-        return None
-      elif rev:
-        gen_log.info('user found, returning actual ' + user['actual'])
-        return user['actual']
-      else:
-        gen_log.info('user found, returning mapped ' + user['mapped'])
-        return user['mapped']
     else:
       user = yield inbounddb.users.find_one({'actual': a})
-      if not user and insert:
-        mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
-        yield inbounddb.users.insert({'mapped': mapped, 'actual': a})
-        gen_log.info('insterted new ext user ' + a + ' -> ' + mapped)
-        return mapped
-      elif user:
-        gen_log.info('ext user found, returning mapped ' + user['mapped'])
-        return user['mapped']
-      else:
-        gen_log.info('ext user not found, not told to insert ' + a)
-        return None
+    return user
+
+  @coroutine
+  def getmapped(self,a):
+    user = yield self.getuser(a)
+    if not user:
+      return None
+    return user['mapped']
+
+  @coroutine
+  def getactual(self,a):
+    user = yield self.getuser(a)
+    if not user:
+      return None
+    return user['actual']
+
+  @coroutine
+  def newmapaddr(self,a):
+    mapped = yield self.getmapped(a)
+    if not mapped:
+      mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
+      yield inbounddb.users.insert({'mapped': mapped, 'actual': a})
+      gen_log.info('insterted new ext user ' + a + ' -> ' + mapped)
+    return mapped
 
   @coroutine
   def mapaddrlist(self, li):
     rli = []
     gen_log.info('mapaddrlist li ' + str(li))
     for x in li:
-      mapped = yield self.getmapaddr(x[0])
+      mapped = yield self.getmapped(x[0])
       if not mapped:
         continue
       if x[1]:
@@ -146,7 +148,7 @@ class RecvHandler(tornado.web.RequestHandler):
 
   @coroutine
   def populate_from_addresses(self, ev, msg):
-      mapped = yield self.getmapaddr(ev['msg']['from_email'])
+      mapped = yield self.getmapped(ev['msg']['from_email'])
       if not mapped:
         return False
       msg['From'] = email.utils.formataddr((ev['msg']['from_name'], mapped))
@@ -244,43 +246,10 @@ class RecvHandler(tornado.web.RequestHandler):
       if ev['msg']['spam_report']['score'] >= 5:
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
-        gen_log.info('subject: ' + ev['msg']['subject'])
-        gen_log.info('from: ' + ev['msg']['from_email'])
-        gen_log.info('From: ' + ev['msg']['from_name'])
-        gen_log.info("===================================================================")
-        gen_log.info('Headers: ' , ev['msg']['headers'])
-        gen_log.info("===================================================================")
-        
-        #yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':Binary(ev.encode(), 128)} )
-        message = [ {'from':ev['msg']['from_email'], 'inboundJson':Binary(ev.encode(), 128)} ]
-        r.lpush('mailarchive', message)
+        message = [ {'from':ev['msg']['from_email'], 'inboundJson':Binary(str(ev).encode(), 128)} ]
+        rclient = self.settings['rclient']
+        rclient.lpush('mailarchive', pickle.dumps(message))
 
-        keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
-
-        if 'to' in keys:
-          for to,toname in ev['msg']['to']:
-            gen_log.info('to: ' + to)
-            if toname:
-              gen_log.info('To: ' + toname)
-
-        if 'cc' in keys:
-          for cc,ccname in ev['msg']['cc']:
-            gen_log.info('cc: ' + cc)
-            if ccname:
-              gen_log.info('Cc: ' + ccname)
-
-        if 'attachments' in ev['msg']:
-          for name,attachment in ev['msg']['attachments'].items():
-            gen_log.info('attachmet name ' + attachment['name'])
-            gen_log.info('attachmet type ' + attachment['type'])
-            gen_log.info('attachmet base64 ' + str(attachment['base64']))
-
-        if 'images' in ev['msg']:
-          for name,image in ev['msg']['images'].items():
-            gen_log.info('image name ' + image['name'])
-            gen_log.info('image type ' + image['type'])
-            gen_log.info('image base64 ' + str(image['base64']))
-        
         allrecipients = ev['msg']['to']
         if 'cc' in ev['msg']:
           allrecipients = allrecipients + ev['msg']['cc']
@@ -309,15 +278,15 @@ class RecvHandler(tornado.web.RequestHandler):
           if not self.isourdomain(mailid[0]):
             continue
           rto = yield self.mapaddrlist(allrecipients)
-          mapped = yield self.getmapaddr(mailid[0],True)
-          if not mapped:
+          actual = yield self.getactual(mailid[0])
+          if not actual:
             continue
           if mailid[1]:
-            recepient = email.utils.formataddr((mailid[1],mapped))
+            recepient = email.utils.formataddr((mailid[1],actual))
             tremove = email.utils.formataddr((mailid[1],mailid[0]))
           else:
-            recepient = mapped
-            tremove = mapped
+            recepient = actual
+            tremove = mailid[0]
           if tremove in rto:
             rto.remove(tremove)
           if msg['From'] in rto:
@@ -327,28 +296,7 @@ class RecvHandler(tornado.web.RequestHandler):
           gen_log.info('To: ' + str(rto))
           msg['To'] = ','.join(rto)
 
-          if msg['X-MC-BccAddress']:
-            del msg['X-MC-BccAddress']
-          #Only From address is being checked for LI as of now.
-          #Mandrill has problem sending CSV X-MC-BccAddress / multiple X-MC-BccAddress addresses
-          '''
-          liemail = None
-          liemail = yield self.isUserEmailTaggedForLI(mapped)
-          if liemail:
-            msg['X-MC-BccAddress'] = liemail
-          '''
-
-          #  msg['X-MC-BccAddress'] = liemail
-          liemail = None
-          liemail = yield self.isUserEmailTaggedForLI(ev['msg']['from_email'])
-          if liemail:
-            msg['X-MC-BccAddress'] = liemail
-            
-          gen_log.info('li tagged is ' + msg['X-MC-BccAddress'])
-
           self.sendmail(ev, msg, recepient)
-          del msg['X-MC-BccAddress']
-          del liemail
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
@@ -364,10 +312,12 @@ class RecvHandler(tornado.web.RequestHandler):
 logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
+rclient = StrictRedis()
 
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
+            "rclient": rclient,
 }
 
 application = tornado.web.Application([
