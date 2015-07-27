@@ -251,7 +251,9 @@ class RecvHandler(tornado.web.RequestHandler):
         gen_log.info('Headers: ' , ev['msg']['headers'])
         gen_log.info("===================================================================")
         
-        yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':Binary(ev.encode(), 128)} )
+        #yield inbounddb.mailBackup.insert( {'from':ev['msg']['from_email'], 'inboundJson':Binary(ev.encode(), 128)} )
+        message = [ {'from':ev['msg']['from_email'], 'inboundJson':Binary(ev.encode(), 128)} ]
+        r.lpush('mailarchive', message)
 
         keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
 
