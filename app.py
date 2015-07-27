@@ -85,18 +85,23 @@ class RecvHandler(tornado.web.RequestHandler):
 
   @coroutine
   def validthread(self,ev,allrecipients):
-    """ If In-Reply-To is not present, then it is assumed to be new thread
-        In such a case, the from address has to be from known domain
-        and allrecipients must have at least one registered user
+    """ 
+        Every new thread must come from known domain and
+        and very mail must have at least one regiestered user
+        who can be the sender or recepient
     """
     from_email = ev['msg']['from_email']
-    success = yield self.isknowndomain(from_email)
-    if not success:
-      return False
+    if 'In-Reply-To' not in ev['msg']['headers']:
+      success = yield self.isknowndomain(from_email)
+      if not success:
+        return False
     for id,name in allrecipients:
       success = self.isregistereduser(id)
       if success:
         return True
+    success = yield self.getuser(from_email)
+    if success:
+      return True
     return False
 
   @coroutine
@@ -148,15 +153,15 @@ class RecvHandler(tornado.web.RequestHandler):
 
   @coroutine
   def populate_from_addresses(self, ev, msg):
-      mapped = yield self.getmapped(ev['msg']['from_email'])
+      mapped = yield self.newmapaddr(ev['msg']['from_email'])
       if not mapped:
         return False
       msg['From'] = email.utils.formataddr((ev['msg']['from_name'], mapped))
       gen_log.info('From: ' + str(msg['From']))
       return True
 
-  def updateAttachments(self, ev, msg, keys):
-      if 'attachments' in keys:
+  def updateAttachments(self, ev, msg):
+      if 'attachments' in ev['msg']:
         for name,attachment in ev['msg']['attachments'].items():
           file_name = attachment['name']
           aType = attachment['type']
@@ -182,7 +187,7 @@ class RecvHandler(tornado.web.RequestHandler):
               raise ValueError("File name missing")
           msg.attach(part)
 
-      if 'images' in keys:
+      if 'images' in ev['msg']:
         for image in ev['msg']['images'].items():
           file_name = images['name']
           aType = images['type']
@@ -193,7 +198,7 @@ class RecvHandler(tornado.web.RequestHandler):
           part.add_header('Content-Disposition', 'attachment', filename=file_name)
           msg.attach(img)
 
-  def updatemail(self, ev, msg, keys):
+  def updatemail(self, ev, msg):
       msg['Subject'] = ev['msg']['subject']
       text = ev['msg']['text']
       html = ev['msg']['html']
@@ -202,7 +207,7 @@ class RecvHandler(tornado.web.RequestHandler):
       msg.attach(part1)
       msg.attach(part2)
 
-      self.updateAttachments(ev, msg, keys)
+      self.updateAttachments(ev, msg)
 
   def sendmail(self, ev, msg, to):
     server = smtplib.SMTP('smtp.mandrillapp.com', 587)
@@ -260,7 +265,7 @@ class RecvHandler(tornado.web.RequestHandler):
           raise ValueError
         
         msg = MIMEMultipart('alternative')
-        self.updatemail(ev, msg, keys)
+        self.updatemail(ev, msg)
         msg['X-MC-PreserveRecipients'] = 'true'
         success = yield self.populate_from_addresses(ev, msg)
         if not success:
