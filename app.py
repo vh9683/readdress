@@ -5,9 +5,7 @@ import sys
 import time
 import smtplib
 import uuid
-import base64
 import mimetypes
-import re
 import email.utils
 from email import encoders
 from email.message import Message
@@ -39,6 +37,9 @@ class RecvHandler(tornado.web.RequestHandler):
 
   def getdomain(self,a):
     return a.split('@')[-1]
+  
+  def getuserid(self,a):
+    return a.split('@')[0]
 
   def isourdomain(self, a):
     return self.getdomain(a) == OUR_DOMAIN
@@ -53,24 +54,35 @@ class RecvHandler(tornado.web.RequestHandler):
       return False
     return True
 
+  def valid_uuid4(self,a):
+    userid = self.getuserid(a)
+    try:
+      val = uuid.UUID(userid, version=4)
+    except ValueError:
+      # If it's a value error, then the string 
+      # is not a valid hex code for a UUID.
+      return False
+
+    # If the uuid_string is a valid hex code, 
+    # but an invalid uuid4,
+    # the UUID.__init__ will convert it to a 
+    # valid uuid4. This is bad for validation purposes.
+    return val.hex == userid
+
   def isregistereduser(self,a):
-    """ check whether the user address is a registered one or generated one based on patter """
-    return self.settings['reguser'].fullmatch(a)
+    """ check whether the user address is a registered one or generated one """
+    return not valid_uuid4(a)
 
   @coroutine
   def isUserEmailTaggedForLI(self, a):
     """ Check if the user address is tagged for LI """
     inbounddb = self.settings['inbounddb']
-    user = yield inbounddb.users.find_one({'actual': a})
-    #Value could be Law agency email id 
-    if user and 'tagged' in user:
-        return user['tagged']
+    if not self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'actual': a})
     else:
       user = yield inbounddb.users.find_one({'mapped': a})
-      #Value could be Law agency email id 
-      if user and 'tagged' in user: 
-        return user['tagged']
-
+    if user and 'tagged' in user: 
+      return user['tagged']
     return None
 
   @coroutine
@@ -79,19 +91,15 @@ class RecvHandler(tornado.web.RequestHandler):
         In such a case, the from address has to be from known domain
         and allrecipients must have at least one registered user
     """
-    if 'In-Reply-To' not in ev['msg']['headers']:
-      from_email = ev['msg']['from_email']
-      success = yield self.isknowndomain(from_email)
-      if not success:
-        return False
-      for id,name in allrecipients:
-        success = self.isregistereduser(id)
-        if success is None:
-          return False
-        else:
-          return True
+    from_email = ev['msg']['from_email']
+    success = yield self.isknowndomain(from_email)
+    if not success:
       return False
-    return True
+    for id,name in allrecipients:
+      success = self.isregistereduser(id)
+      if success:
+        return True
+    return False
 
   @coroutine
   def getmapaddr(self, a,rev=False,insert=True):
@@ -110,7 +118,7 @@ class RecvHandler(tornado.web.RequestHandler):
     else:
       user = yield inbounddb.users.find_one({'actual': a})
       if not user and insert:
-        mapped = base64.urlsafe_b64encode(str(uuid.uuid4()).encode()).decode('ascii')+'@'+OUR_DOMAIN
+        mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
         yield inbounddb.users.insert({'mapped': mapped, 'actual': a})
         gen_log.info('insterted new ext user ' + a + ' -> ' + mapped)
         return mapped
@@ -355,12 +363,9 @@ logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
 
-reguser = re.compile('^[0-9]{8,16}@'+OUR_DOMAIN)
-
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
-            "reguser": reguser,
 }
 
 application = tornado.web.Application([
