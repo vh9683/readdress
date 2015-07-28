@@ -24,9 +24,8 @@ if __name__ == '__main__':
 
   while True:
     item = r.brpoplpush('mailarchive', 'mailarchivebackup')
-    item = pickle.loads(item)
-    print('item ' + str(item))
-    db.insert( item[0] )
+    aitem = pickle.loads(item)
+    db.insert( aitem[0] )
     print ('len of mailarchivebackup is : {}'.format(r.llen('mailarchivebackup')))
     r.lrem('mailarchivebackup', 0, item)
     print ('len of mailarchivebackup is : {}'.format(r.llen('mailarchivebackup')))
