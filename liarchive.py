@@ -25,8 +25,8 @@ if __name__ == '__main__':
   while True:
     item = r.brpoplpush('liarchive', 'liarchivebackup')
     itemlist = pickle.loads(item)
-    if len(itemlist) == 2:
-      db.insert( { itemlist[0], 'inboundJson':Binary(str(itemlist[1]).encode(), 128)} ]
+    if (len(itemlist) == 2):
+      db.insert( { 'tagged':itemlist[0], 'inboundJson':Binary(str(itemlist[1]).encode(), 128)} )
     else:
         continue
     print ('len of liarchivebackup is : {}'.format(r.llen('liarchivebackup')))

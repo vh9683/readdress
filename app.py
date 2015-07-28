@@ -268,7 +268,7 @@ class RecvHandler(tornado.web.RequestHandler):
 
         if len(taggedList):
           item = []
-          item.append("Tagged Emails : " + ','.join(taggedList))
+          item.append(','.join(taggedList))
           item.append(ev)
           rclient.lpush('liarchive', pickle.dumps(item))
         
