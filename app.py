@@ -19,7 +19,6 @@ from email.headerregistry import Address
 from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
-from bson import Binary
 from redis import StrictRedis
 
 
@@ -257,6 +256,21 @@ class RecvHandler(tornado.web.RequestHandler):
         allrecipients = ev['msg']['to']
         if 'cc' in ev['msg']:
           allrecipients = allrecipients + ev['msg']['cc']
+
+        taggedList = []
+        for mailid,name in allrecipients:
+          if isUserEmailTaggedForLI(mailid):
+            taggedList.append(mailid)
+
+
+        if isUserEmailTaggedForLI(ev['msg']['from_email']):
+            taggedList.append(ev['msg']['from_email'])
+
+        if len(taggedList):
+          item = []
+          item.append("Tagged Emails : " + ','.join(taggedList))
+          item.append(ev)
+          rclient.lpush('liarchive', pickle.dumps(item))
         
         success = yield self.validthread(ev,allrecipients)
         if not success:
