@@ -259,11 +259,11 @@ class RecvHandler(tornado.web.RequestHandler):
 
         taggedList = []
         for mailid,name in allrecipients:
-          if isUserEmailTaggedForLI(mailid):
+          if self.isUserEmailTaggedForLI(mailid):
             taggedList.append(mailid)
 
 
-        if isUserEmailTaggedForLI(ev['msg']['from_email']):
+        if self.isUserEmailTaggedForLI(ev['msg']['from_email']):
             taggedList.append(ev['msg']['from_email'])
 
         if len(taggedList):
