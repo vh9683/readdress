@@ -251,9 +251,8 @@ class RecvHandler(tornado.web.RequestHandler):
       if ev['msg']['spam_report']['score'] >= 5:
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
-        message = [ {'from':ev['msg']['from_email'], 'inboundJson':Binary(str(ev).encode(), 128)} ]
         rclient = self.settings['rclient']
-        rclient.lpush('mailarchive', pickle.dumps(message))
+        rclient.lpush('mailarchive', pickle.dumps(ev))
 
         allrecipients = ev['msg']['to']
         if 'cc' in ev['msg']:

@@ -24,8 +24,9 @@ if __name__ == '__main__':
 
   while True:
     item = r.brpoplpush('mailarchive', 'mailarchivebackup')
-    aitem = pickle.loads(item)
-    db.insert( aitem[0] )
+    message = pickle.loads(item)
+    aitem = [ {'from':message['msg']['from_email'], 'inboundJson':Binary(str(message).encode(), 128)} ]
+    db.insert( aitem )
     print ('len of mailarchivebackup is : {}'.format(r.llen('mailarchivebackup')))
     r.lrem('mailarchivebackup', 0, item)
     print ('len of mailarchivebackup is : {}'.format(r.llen('mailarchivebackup')))
