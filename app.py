@@ -23,6 +23,7 @@ from redis import StrictRedis
 
 
 OUR_DOMAIN = 'inbound.edulead.in'
+REDIS_MAIL_DUMP_EXPIRY_TIME = 60
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -208,27 +209,15 @@ class RecvHandler(tornado.web.RequestHandler):
 
       self.updateAttachments(ev, msg)
 
-  def sendmail(self, ev, msg, to):
-    server = smtplib.SMTP('smtp.mandrillapp.com', 587)
-    try:
-      server.set_debuglevel(True)
+  def sendmail(self, evKey, msg, to):
+    rclient = self.settings['rclient']
+    key = uuid.uuid4().hex + ',' + evKey
+    rclient.set(key, pickle.dumps((to, msg)))
+    ''' mark key to exipre after 15 secs'''
+    rclient.expire(key, 25)
+    r.lpush('sendmail', key)
+    return
 
-      # identify ourselves, prompting server for supported features
-      server.ehlo()
-
-      # If we can encrypt this session, do it
-      if server.has_extn('STARTTLS'):
-        server.starttls()
-        server.ehlo() # re-identify ourselves over TLS connection
-        server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
-
-      gen_log.info('RCPT : {}'.format(to))
-
-      composed = msg.as_string()
-      gen_log.info('Actual Msg : {}'.format(composed))
-      server.sendmail(ev['msg']['from_email'], to, composed)
-    finally:
-      server.quit()
 
   @coroutine
   def post(self):
@@ -292,6 +281,12 @@ class RecvHandler(tornado.web.RequestHandler):
         if 'References' in ev['msg']['headers']:
           msg.add_header("References", ev['msg']['headers']['References'])
                 
+        evKey =  uuid.uuid4().hex
+        rclient.set(evKey, pickle.dumps(ev))
+        ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
+        ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
+        rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+        mail_count = 0
         for mailid in allrecipients:
           if not self.isourdomain(mailid[0]):
             continue
@@ -314,7 +309,8 @@ class RecvHandler(tornado.web.RequestHandler):
           gen_log.info('To: ' + str(rto))
           msg['To'] = ','.join(rto)
 
-          self.sendmail(ev, msg, recepient)
+          self.sendmail(evKey, msg, recepient)
+
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
