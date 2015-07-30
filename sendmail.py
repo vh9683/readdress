@@ -6,8 +6,24 @@ from redis import StrictRedis
 from bson import Binary
 import pymongo
 import pickle
+import logging
+import logging.handlers
 
-def sendmail(ev, msg, to):
+'''
+-------------
+Level   Value
+-------------
+CRITICAL    50
+ERROR   40
+WARNING 30
+INFO    20
+DEBUG   10
+UNSET   0
+'''
+
+FILESIZE=1024*1024*1024 #1MB
+
+def sendmail(ev, msg, to, logger):
     ''' function to be optimised ''' 
     server = smtplib.SMTP('smtp.mandrillapp.com', 587)
     try:
@@ -22,10 +38,10 @@ def sendmail(ev, msg, to):
         server.ehlo() # re-identify ourselves over TLS connection
         server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
-      gen_log.info('RCPT : {}'.format(to))
+      logger.info('RCPT : {}'.format(to))
 
       composed = msg.as_string()
-      gen_log.info('Actual Msg : {}'.format(composed))
+      logger.debug('Actual Msg : {}'.format(composed))
       server.sendmail(ev['msg']['from_email'], to, composed)
     finally:
       server.quit()
@@ -45,6 +61,14 @@ if __name__ == '__main__':
   db = conn.inbounddb.liMailBackUp
   r = StrictRedis()
 
+  logger = logging.getLogger('sendmail')
+  formatter = logging.Formatter('SENDMAIL:%(asctime)s %(levelname)s %(message)s')
+  hdlr = logging.handlers.RotatingFileHandler('/var/tmp/sendmail.log', 
+                                            maxBytes=FILESIZE, backupCount=10)
+  hdlr.setFormatter(formatter)
+  logger.addHandler(hdlr) 
+  logger.setLevel(logging.DEBUG)
+
   while True:
     item = r.brpoplpush('sendmail', 'sendmailbackup')
     #Get the smtp msg from redis
@@ -57,12 +81,12 @@ if __name__ == '__main__':
       if r.exists(evKey):
         evpickle = r.get(evKey)
         ev = pickle.loads(evpickle)
-        sendmail(ev, msgtuple[1], msgtuple[0])
+        sendmail(ev, msgtuple[1], msgtuple[0]), logger)
       else:
         pass
     else:
         pass
     #No need to remove from redis .. it will be removed after expiry
-    print ('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
+    logger.info('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
     r.lrem('sendmailbackup', 0, item)
-    print ('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
+    logger.info('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
