@@ -8,6 +8,7 @@ import uuid
 import mimetypes
 import pickle
 import email.utils
+import base64
 from email import encoders
 from email.message import Message
 from email.mime.audio import MIMEAudio
@@ -173,18 +174,23 @@ class RecvHandler(tornado.web.RequestHandler):
               part = MIMEText(attachment['content'], subtype)
           elif 'audio' == maintype:
               part = MIMEAudio(attachment['content'], subtype)
+          elif 'image' == maintype:
+              epart = base64.b64decode(attachment['content'])
+              part = MIMEImage(epart, _subtype=subtype)
+              #gen_log.info("attachment : {} ".format(json.dumps(attachment, indent=2)))
           else:
               part = MIMEBase(maintype, subtype)
               part.set_payload(attachment['content'])
 
-          # Encode the payload using Base64
-          if isBase64:
+          # Encode the payload using Base64, use this for non image attachments
+          if isBase64 and not ('image' == maintype):
               encoders.encode_base64(part)
           # Set the filename parameter
           if file_name is not None:
               part.add_header('Content-Disposition', 'attachment', filename=file_name)
           else:
               raise ValueError("File name missing")
+
           msg.attach(part)
 
       if 'images' in ev['msg']:
@@ -192,9 +198,10 @@ class RecvHandler(tornado.web.RequestHandler):
           file_name = images['name']
           aType = images['type']
           isBase64 = images['base64']
-          img = MIMEImage(image['content'] ,_subtype=subtype)
-          if isBase64:
-              encoders.encode_base64(part)
+          epart = base64.b64decode(attachment['content'])
+          img = MIMEImage(epart, _subtype=subtype)
+          #if isBase64:
+          #    encoders.encode_base64(part)
           part.add_header('Content-Disposition', 'attachment', filename=file_name)
           msg.attach(img)
 
