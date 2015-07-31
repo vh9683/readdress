@@ -214,8 +214,9 @@ class RecvHandler(tornado.web.RequestHandler):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
     ''' mark key to exipre after 15 secs'''
+    key = key.encode()
     rclient.expire(key, 25)
-    r.lpush('sendmail', key)
+    rclient.lpush('sendmail', key)
     return
 
 

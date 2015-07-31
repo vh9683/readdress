@@ -8,6 +8,7 @@ import pymongo
 import pickle
 import logging
 import logging.handlers
+import smtplib
 
 '''
 -------------
@@ -72,16 +73,18 @@ if __name__ == '__main__':
   while True:
     item = r.brpoplpush('sendmail', 'sendmailbackup')
     #Get the smtp msg from redis
+    item = item.decode()
     if r.exists(item):
       msgtuplepickle = r.get(item)
       msgtuple = pickle.loads(msgtuplepickle)
       #Get the inbound json obj from redis
+      logger.info('item is {} '.format(item))
       keys = item.split(',')
       evKey = keys[1]
       if r.exists(evKey):
         evpickle = r.get(evKey)
         ev = pickle.loads(evpickle)
-        sendmail(ev, msgtuple[1], msgtuple[0]), logger)
+        sendmail(ev, msgtuple[1], msgtuple[0], logger)
       else:
         pass
     else:
