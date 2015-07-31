@@ -175,8 +175,13 @@ class RecvHandler(tornado.web.RequestHandler):
           elif 'audio' == maintype:
               part = MIMEAudio(attachment['content'], subtype)
           elif 'image' == maintype:
-              epart = base64.b64decode(attachment['content'])
-              part = MIMEImage(epart, _subtype=subtype)
+              imgattachment = attachment['content']
+              if isBase64:
+                epart = base64.b64decode(imgattachment)
+                part = MIMEImage(epart, _subtype=subtype)
+              else:
+                part = MIMEImage(imgattachment, _subtype=subtype)
+                encoders.encode_base64(part)
               #gen_log.info("attachment : {} ".format(json.dumps(attachment, indent=2)))
           else:
               part = MIMEBase(maintype, subtype)
