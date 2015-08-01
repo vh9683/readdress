@@ -16,6 +16,7 @@ from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from email.headerregistry import Address
 from tornado.log import logging, gen_log
 from motor import MotorClient
@@ -170,10 +171,15 @@ class RecvHandler(tornado.web.RequestHandler):
               aType = 'application/octet-stream'
           isBase64 = attachment['base64']
           maintype, subtype = aType.split('/', 1)
+          gen_log.info("MAIN TYPE {} SUB TYPE {} ".format(maintype, subtype))
           if 'text' == maintype:
               part = MIMEText(attachment['content'], subtype)
+              if isBase64:
+                encoders.encode_base64(part)
           elif 'audio' == maintype:
               part = MIMEAudio(attachment['content'], subtype)
+              if isBase64:
+                encoders.encode_base64(part)
           elif 'image' == maintype:
               imgattachment = attachment['content']
               if isBase64:
@@ -181,15 +187,29 @@ class RecvHandler(tornado.web.RequestHandler):
                 part = MIMEImage(epart, _subtype=subtype)
               else:
                 part = MIMEImage(imgattachment, _subtype=subtype)
-                encoders.encode_base64(part)
-              #gen_log.info("attachment : {} ".format(json.dumps(attachment, indent=2)))
+          elif 'application' == maintype and 'pdf' == subtype:
+              content = (attachment['content'])
+              if isBase64:
+                epart = base64.b64decode(content)
+                part = MIMEApplication(epart, subtype)
+              else:
+                part = MIMEApplication(content, subtype)
+              part.add_header('Content-ID', '<pdf>')
           else:
               part = MIMEBase(maintype, subtype)
-              part.set_payload(attachment['content'])
+              content = (attachment['content'])
+              if isBase64:
+                epart = base64.b64decode(content)
+                part.set_payload(epart)
+              else:
+                part.set_payload(content)
+              if isBase64:
+                encoders.encode_base64(part)
+
 
           # Encode the payload using Base64, use this for non image attachments
-          if isBase64 and not ('image' == maintype):
-              encoders.encode_base64(part)
+          #if isBase64 and not ('image' == maintype):
+          #    encoders.encode_base64(part)
           # Set the filename parameter
           if file_name is not None:
               part.add_header('Content-Disposition', 'attachment', filename=file_name)
@@ -199,14 +219,19 @@ class RecvHandler(tornado.web.RequestHandler):
           msg.attach(part)
 
       if 'images' in ev['msg']:
+        #gen_log.info("IMAGEs {}".format(json.dumps(ev['msg']['images'], indent=4)))
         for image in ev['msg']['images'].items():
-          file_name = images['name']
-          aType = images['type']
-          isBase64 = images['base64']
+          #gen_log.info("IMAGE {}".format(json.dumps(image, indent=2)))
+          file_name = image['name']
+          aType = image['type']
+          isBase64 = image['base64']
           epart = base64.b64decode(attachment['content'])
           img = MIMEImage(epart, _subtype=subtype)
           #if isBase64:
           #    encoders.encode_base64(part)
+          ''' 
+            need to handle Content-Disposition when its inlined ... mandrill might not support inline contents
+          '''
           part.add_header('Content-Disposition', 'attachment', filename=file_name)
           msg.attach(img)
 
