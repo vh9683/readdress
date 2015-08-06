@@ -17,6 +17,8 @@ from email.mime.text import MIMEText
 from email.headerregistry import Address
 import uuid
 import base64
+import copy
+from email.utils import parseaddr
 
 
 def parseremail(emaildump):
@@ -45,6 +47,20 @@ def parseremail(emaildump):
     for part in msg:
         print (part)
 
+    print ("TYPE {} : ID {} , LEN : {}".format(type(msg), id(msg), len(msg) ))
+    msg1 = copy.deepcopy(msg)
+    print ("TYPE {} : ID {} , LEN : {} ".format(type(msg1), id(msg1), len(msg1)))
+
+    for i in msg.items():
+        print (i)
+    
+    toaddstr = msg1['To']
+    del msg1['To']
+    if toaddstr:
+        tolst = toaddstr.split(',')
+        for i in tolst:
+            n, e = parseaddr(i)
+            print ("Parsed email : {}  : {} ".format (n, e))
 
     
 
