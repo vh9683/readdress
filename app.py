@@ -186,15 +186,16 @@ class RecvHandler(tornado.web.RequestHandler):
           elif 'image' == maintype:
               imgattachment = attachment['content']
               if isBase64:
-                epart = base64.b64decode(imgattachment)
-                part = MIMEImage(epart, _subtype=subtype)
+                part = MIMEImage(None, _subtype=subtype)
+                part.set_payload(imgattachment)
               else:
                 part = MIMEImage(imgattachment, _subtype=subtype)
           elif 'application' == maintype and 'pdf' == subtype:
               content = (attachment['content'])
               if isBase64:
-                epart = base64.b64decode(content)
-                part = MIMEApplication(epart, subtype)
+                #epart = base64.b64decode(content)
+                part = MIMEApplication(None, subtype)
+                part.set_payload(content)
               else:
                 part = MIMEApplication(content, subtype)
               part.add_header('Content-ID', '<pdf>')
@@ -202,11 +203,10 @@ class RecvHandler(tornado.web.RequestHandler):
               part = MIMEBase(maintype, subtype)
               content = (attachment['content'])
               if isBase64:
-                epart = base64.b64decode(content)
-                part.set_payload(epart)
+                #epart = base64.b64decode(content)
+                part.set_payload(content)
               else:
                 part.set_payload(content)
-              if isBase64:
                 encoders.encode_base64(part)
 
 
