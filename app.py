@@ -93,10 +93,13 @@ class RecvHandler(tornado.web.RequestHandler):
         who can be the sender or recepient
     """
     from_email = ev['msg']['from_email']
-    if 'In-Reply-To' not in ev['msg']['headers']:
-      success = yield self.isknowndomain(from_email)
-      if not success:
-        return False
+    if "Message-Id" not in ev["msg"]["headers"]:
+      return False
+    rclient = self.settings["rclient"]
+    mid = pickle.loads(rclient.get(ev["msg"]["headers"]["Message-Id"]))
+    if mid and mid == from_email:
+      return False
+    rclient.set(ev["msg"]["headers"]["Message-Id"],pickle.dumps(from_email))
     for id,name in allrecipients:
       success = self.isregistereduser(id)
       if success:
