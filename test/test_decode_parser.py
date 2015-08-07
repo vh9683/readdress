@@ -85,6 +85,9 @@ def populate_to_addresses_FAT(tostring, msg, keys):
     #toaddresses =""
     tolst = tostring.split(',')
     tolst = [to.strip() for to in tolst]
+    tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
+
+    print('TO LST {}'.format(tolst))
     for toaddr in tolst:
         toname,to  = parseaddr(toaddr)
         #print('to: ' + to)
@@ -175,12 +178,25 @@ def parse_mail(ev):
     fromstring = msg['From']
     del msg['From']
     tostring = msg['To']
+    if 'undisclosed' in tostring:
+        print ("Could be bcc mail")
+        match = re.search('([\w.-]+)@([\w.-]+)', msg['Received'])
+        if match is not None:
+            bccemail = match.group()
+            print ("bcc mail: {} ".format(bccemail))
+
     del msg['To']
     ccstring = msg['Cc']
     del msg['Cc']
     keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
     values = [ k for k in ev['msg'] if k in ev['msg'].values() ]
 
+    receivedhrds = msg.get_all('Received')
+    print ("RCVD HDR : {}".format(type(receivedhrds)))
+    for i in receivedhrds:
+        print ("RECVD: {}".format(i))
+
+    print ("RECEIVED : {}".format(msg.get_all('Received')))
 
     inreplyto = False
     if not inreplyto: #received a new mail

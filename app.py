@@ -22,11 +22,11 @@ from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
-
-
-OUR_DOMAIN = 'inbound.edulead.in'
-REDIS_MAIL_DUMP_EXPIRY_TIME = 60
-
+import copy
+import email.utils 
+from email.utils import parseaddr
+import logging
+import logging.handlers
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -280,82 +280,91 @@ class RecvHandler(tornado.web.RequestHandler):
       if ev['msg']['spam_report']['score'] >= 5:
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
+        ''' stage 1 do mail archive for all mails '''
         rclient = self.settings['rclient']
-        rclient.lpush('mailarchive', pickle.dumps(ev))
+        pickledEv = pickle.dumps(ev)
+        rclient.lpush('mailarchive', pickledEv)
 
-        allrecipients = ev['msg']['to']
-        if 'cc' in ev['msg']:
-          allrecipients = allrecipients + ev['msg']['cc']
+        ''' Push the entire json to mailhandler thread through redis list'''
+        rclient.lpush('mailhandler', pickledEv)
 
-        taggedList = []
-        for mailid,name in allrecipients:
-          if self.isUserEmailTaggedForLI(mailid):
-            taggedList.append(mailid)
-
-
-        if self.isUserEmailTaggedForLI(ev['msg']['from_email']):
-            taggedList.append(ev['msg']['from_email'])
-
-        if len(taggedList):
-          item = []
-          item.append(','.join(taggedList))
-          item.append(ev)
-          rclient.lpush('liarchive', pickle.dumps(item))
-        
-        success = yield self.validthread(ev,allrecipients)
-        if not success:
-          gen_log.info("Not a valid mail thread!!, dropping...")
-          raise ValueError
-        
-        msg = MIMEMultipart('alternative')
-        self.updatemail(ev, msg)
-        msg['X-MC-PreserveRecipients'] = 'true'
-        success = yield self.populate_from_addresses(ev, msg)
-        if not success:
-          gen_log.info('Error adding from address')
-          raise ValueError
-                
-        if 'Message-Id' in ev['msg']['headers']:
-          msg.add_header("Message-Id", ev['msg']['headers']['Message-Id'])
-        if 'In-Reply-To' in ev['msg']['headers']:
-          msg.add_header("In-Reply-To", ev['msg']['headers']['In-Reply-To'])
-        if 'References' in ev['msg']['headers']:
-          msg.add_header("References", ev['msg']['headers']['References'])
-                
-        evKey =  uuid.uuid4().hex
-        rclient.set(evKey, pickle.dumps(ev))
-        ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
-        ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
-        rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
-        mail_count = 0
-        for mailid in allrecipients:
-          if not self.isourdomain(mailid[0]):
-            continue
-          rto = yield self.mapaddrlist(allrecipients)
-          actual = yield self.getactual(mailid[0])
-          if not actual:
-            continue
-          if mailid[1]:
-            recepient = email.utils.formataddr((mailid[1],actual))
-            tremove = email.utils.formataddr((mailid[1],mailid[0]))
-          else:
-            recepient = actual
-            tremove = mailid[0]
-          if tremove in rto:
-            rto.remove(tremove)
-          if msg['From'] in rto:
-            rto.remove(msg['From'])
-          if 'To' in msg:
-            del msg['To']
-          gen_log.info('To: ' + str(rto))
-          msg['To'] = ','.join(rto)
-
-          self.sendmail(evKey, msg, recepient)
+        del pickledEv
+        del ev
 
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
     return
+
+#       allrecipients = ev['msg']['to']
+#       if 'cc' in ev['msg']:
+#         allrecipients = allrecipients + ev['msg']['cc']
+
+#       taggedList = []
+#       for mailid,name in allrecipients:
+#         if self.isUserEmailTaggedForLI(mailid):
+#           taggedList.append(mailid)
+
+#       if self.isUserEmailTaggedForLI(ev['msg']['from_email']):
+#           taggedList.append(ev['msg']['from_email'])
+
+#       ''' stage 2 check for Law Interception for all mails '''
+#       if len(taggedList):
+#         item = []
+#         item.append(','.join(taggedList))
+#         item.append(ev)
+#         rclient.lpush('liarchive', pickle.dumps(item))
+#       
+#       success = yield self.validthread(ev,allrecipients)
+#       if not success:
+#         gen_log.info("Not a valid mail thread!!, dropping...")
+#         raise ValueError
+#       
+#       msg = MIMEMultipart('alternative')
+#       self.updatemail(ev, msg)
+#       msg['X-MC-PreserveRecipients'] = 'true'
+#       success = yield self.populate_from_addresses(ev, msg)
+#       if not success:
+#         gen_log.info('Error adding from address')
+#         raise ValueError
+#               
+#       if 'Message-Id' in ev['msg']['headers']:
+#         msg.add_header("Message-Id", ev['msg']['headers']['Message-Id'])
+#       if 'In-Reply-To' in ev['msg']['headers']:
+#         msg.add_header("In-Reply-To", ev['msg']['headers']['In-Reply-To'])
+#       if 'References' in ev['msg']['headers']:
+#         msg.add_header("References", ev['msg']['headers']['References'])
+#               
+#       evKey =  uuid.uuid4().hex
+#       rclient.set(evKey, pickle.dumps(ev))
+#       ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
+#       ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
+#       rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+#       mail_count = 0
+#       for mailid in allrecipients:
+#         if not self.isourdomain(mailid[0]):
+#           continue
+#         rto = yield self.mapaddrlist(allrecipients)
+#         actual = yield self.getactual(mailid[0])
+#         if not actual:
+#           continue
+#         if mailid[1]:
+#           recepient = email.utils.formataddr((mailid[1],actual))
+#           tremove = email.utils.formataddr((mailid[1],mailid[0]))
+#         else:
+#           recepient = actual
+#           tremove = mailid[0]
+#         if tremove in rto:
+#           rto.remove(tremove)
+#         if msg['From'] in rto:
+#           rto.remove(msg['From'])
+#         if 'To' in msg:
+#           del msg['To']
+#         gen_log.info('To: ' + str(rto))
+#         msg['To'] = ','.join(rto)
+
+#         self.sendmail(evKey, msg, recepient)
+
 
   def head(self):
    gen_log.info('recv head hit!')
