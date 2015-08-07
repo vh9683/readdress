@@ -1,30 +1,18 @@
 #! /usr/bin/python3.4
 
 import sys
-from redis import StrictRedis
-from bson import Binary
+import re
 import base64
 import pymongo
 import pickle
 import logging
 import logging.handlers
-from email import encoders
-from email.message import Message
-from email.mime.audio import MIMEAudio
-from email.mime.base import MIMEBase
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from email.headerregistry import Address
-from tornado.log import logging, gen_log
-from motor import MotorClient
-from tornado.gen import coroutine
-from redis import StrictRedis
 import copy
+import uuid
+import time
 import email.utils 
 from email.utils import parseaddr
-i
+from redis import StrictRedis
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -60,16 +48,16 @@ def isourdomain( a):
 def isknowndomain(a):
   if isourdomain(a):
     return True
-  known = yield db.domains.find_one({'domain': getdomain(a)})
+  known = db.domains.find_one({'domain': getdomain(a)})
   if not known:
     return False
   return True
 
 def getuser(a):
   if isourdomain(a):
-    user = db.inbounddb.users.find_one({'mapped': a})
+    user = db.users.find_one({'mapped': a})
   else:
-    user = db.inbounddb.users.find_one({'actual': a})
+    user = db.users.find_one({'actual': a})
   return user
 
 def getmapped(a):
@@ -82,13 +70,14 @@ def newmapaddr(a):
   mapped = getmapped(a)
   if not mapped:
     mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
-    db.inbounddb.users.insert({'mapped': mapped, 'actual': a})
+    db.users.insert({'mapped': mapped, 'actual': a})
     logger.info('insterted new ext user ' + a + ' -> ' + mapped)
   return mapped
 
 def populate_from_addresses(msg):
   fromstring = msg['From']
   fromname, fromemail = parseaddr(fromstring)
+  logger.info("Actual From address {} {}".format(fromname, fromemail))
   mapped = newmapaddr(fromemail)
   if not mapped:
     return False
@@ -101,7 +90,7 @@ def populate_from_addresses(msg):
   return True, fromemail
 
 def getToAddresses(msg):
-  tostr = msg.get('To')
+  tostring = msg.get('To')
   tolst = tostring.split(',')
   tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   torecipients = []
@@ -112,10 +101,12 @@ def getToAddresses(msg):
   return torecipients
 
 def getCcAddresses(msg):
-  ccstr = msg.get('Cc')
+  ccrecipients = []
+  ccstring = msg.get('Cc')
+  if ccstring is None:
+    return ccrecipients
   cclst = ccstring.split(',')
   cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
-  ccrecipients = []
   for ccaddr in cclst:
     ccname,cc  = parseaddr(ccaddr)
     cc = [cc, ccname]
@@ -128,6 +119,7 @@ def checkForBccmail (msg):
   bccinmail = False
   bccemail = []
   for hdr in receivedhrds:
+    logger.info("Received header \n {}".format(hdr))
     match = re.search('([\w.-]+)@([\w.-]+)', hdr)
     if match is not None:
       mailaddr = match.group()
@@ -168,17 +160,19 @@ def validthread(msg,allrecipients,from_email):
   msgId = msg.get("Message-ID") 
   if msgId is None:
     return False
-
-  mid = pickle.loads(rclient.get(msgId))
-  if mid and mid == from_email:
-    return False
+  pickledMsgId = rclient.get(msgId)
+  if pickledMsgId:
+    mid = pickle.loads(rclient.get(msgId))
+    if mid and mid == from_email:
+      return False
+  
   rclient.set(msgId,pickle.dumps(from_email))
 
   for id,name in allrecipients:
     success = isregistereduser(id)
     if success:
       return True
-  success = yield getuser(from_email)
+  success =  getuser(from_email)
   if success:
     return True
   return False
@@ -218,6 +212,7 @@ def sendmail( evKey, msg, to):
   key = key.encode()
   rclient.expire(key, 25)
   rclient.lpush('sendmail', key)
+  logger.info("sendmail key {}".format(key))
   return
 
 if __name__ == '__main__':
@@ -238,10 +233,12 @@ if __name__ == '__main__':
     msg = copy.deepcopy(origmsg)
     del msg['DKIM-Signature']
     
+    '''
     if checkForBccmail(msg):
       #Dropping mail
       continue
-   
+   '''
+
     ''' handle ev msg here 
         1) parse raw msg
         2) check for validity
@@ -315,11 +312,12 @@ if __name__ == '__main__':
         del msg['To']
       logger.info('To: ' + str(rto))
       msg['To'] = ','.join(rto)
+      logger.info("Pushing msg to sendmail list {}\n".format(recepient))
       sendmail(evKey, msg, recepient)
  
-    print ('len of mailhandlerBackUp is : {}'.format(r.llen('mailhandlerBackUp')))
+    logger.info ('len of emailhandler mailhandlerBackUp is : {}'.format(rclient.llen('mailhandlerBackUp')))
     rclient.lrem('mailhandlerBackUp', 0, item)
-    print ('len of mailhandlerBackUp is : {}'.format(r.llen('mailhandlerBackUp')))
+    logger.info ('len of emailhandler mailhandlerBackUp is : {}'.format(rclient.llen('mailhandlerBackUp')))
 
     del origmsg
     del msg

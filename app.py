@@ -3,7 +3,6 @@ import tornado.web
 import json
 import sys
 import time
-import smtplib
 import uuid
 import mimetypes
 import pickle
