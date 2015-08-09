@@ -133,6 +133,42 @@ def checkForBccmail (msg):
   return bccinmail
 
 def valid_uuid4(a):
+  ''' A useful thread identification algorithm is explained in 
+      http://www.jwz.org/doc/threading.html ...
+      
+      NOTES:
+            References header: will contains list of all message id's for tentire converstion.
+            Oldest MsgId being the first. Header contain a list of Message-IDs listing the parent, grandparent, great-grandparent, 
+            and so on, of this message, oldest first. 
+            That is, the direct parent of this message will be the last element of the References header.
+            NewsGroups are allowed to truncate the refrences header.
+
+            In-Reply-To Header will (most of times) contain the msgid of recent message for which reply is being sent to.
+            
+            New Mail will not contein In-ReplyTo and References header. It will contain MsgId header only.
+
+
+    Design:
+        1) For each new mail received we need to store msgId as key and value "" (mails which does not contain In-Reply-To header)
+        2) For each reply mail, we need to get the refrences header and in-reply-to id and search in collections for existing entries.
+           Get In-Reply-To header mostly contains the msgId of previous mail, search is int the collection and get the actual msgId
+           and check if it is the head of references header. If these check passed the thread is valid.
+           Now add the nre msgId of reply mail into the values section for the original msgId stored in the mongodb
+           Or 
+           if in-reply-to value is part of any documents of existing treat this as valid thread and add the msgid of reply mail in to 
+            the document.
+        3) Handling duplicates, if the msgId of the new reply mail is part of any existing documents of db then treat this mail as 
+        duplicate. We need not handle this mail.
+
+        For above logic we may think of adding subject as well. for all reply mails we can match the existing subject line excluding "re:" 
+        charactes of the reply mail subject line.
+
+    Notes:
+     1) For new mails the existing gmail , other mail servers does not produce multiple inbound triggers for mail id's in cc header.
+     2) But for reply path the gmail and other servers does produce multiple inbound triggers (possibly with same msgId) for each
+     mail id in cc header.
+
+  '''
   userid = getuserid(a)
   try:
     val = uuid.UUID(userid, version=4)
@@ -310,6 +346,8 @@ if __name__ == '__main__':
         rto.remove(msg['From'])
       if 'To' in msg:
         del msg['To']
+      if 'Cc' in msg:
+        del msg['Cc']
       logger.info('To: ' + str(rto))
       msg['To'] = ','.join(rto)
       logger.info("Pushing msg to sendmail list {}\n".format(recepient))
