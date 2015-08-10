@@ -133,6 +133,30 @@ def checkForBccmail (msg):
   return bccinmail
 
 def valid_uuid4(a):
+  userid = getuserid(a)
+  try:
+    val = uuid.UUID(userid, version=4)
+  except ValueError:
+    # If it's a value error, then the string 
+    # is not a valid hex code for a UUID.
+    return False
+
+  # If the uuid_string is a valid hex code, 
+  # but an invalid uuid4,
+  # the UUID.__init__ will convert it to a 
+  # valid uuid4. This is bad for validation purposes.
+  return val.hex == userid
+
+def isregistereduser(a):
+  """ check whether the user address is a registered one or generated one """
+  return not valid_uuid4(a)
+
+def validthread(msg,allrecipients,from_email):
+  """ 
+      Every new thread must come from known domain and
+      and very mail must have at least one regiestered user
+      who can be the sender or recepient
+  """
   ''' A useful thread identification algorithm is explained in 
       http://www.jwz.org/doc/threading.html ...
       
@@ -169,40 +193,51 @@ def valid_uuid4(a):
      mail id in cc header.
 
   '''
-  userid = getuserid(a)
-  try:
-    val = uuid.UUID(userid, version=4)
-  except ValueError:
-    # If it's a value error, then the string 
-    # is not a valid hex code for a UUID.
-    return False
 
-  # If the uuid_string is a valid hex code, 
-  # but an invalid uuid4,
-  # the UUID.__init__ will convert it to a 
-  # valid uuid4. This is bad for validation purposes.
-  return val.hex == userid
-
-def isregistereduser(a):
-  """ check whether the user address is a registered one or generated one """
-  return not valid_uuid4(a)
-
-def validthread(msg,allrecipients,from_email):
-  """ 
-      Every new thread must come from known domain and
-      and very mail must have at least one regiestered user
-      who can be the sender or recepient
-  """
   msgId = msg.get("Message-ID") 
   if msgId is None:
     return False
-  pickledMsgId = rclient.get(msgId)
-  if pickledMsgId:
-    mid = pickle.loads(rclient.get(msgId))
-    if mid and mid == from_email:
-      return False
-  
-  rclient.set(msgId,pickle.dumps(from_email))
+
+  msgId = msgId.strip()
+
+  inreplyto = msg.get("In-Reply-To")
+  ''' References are seperated by '\n\t' oldest thread id being the first id in references '''
+  references = msg.get('References')
+  if inreplyto is not None:
+    inreplyto = inreplyto.strip()
+  if references is not None:
+    references = references.strip()
+
+  if inreplyto is None and references is None:
+    mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
+    if mailthread is None:
+      ''' no mail with msgId found in DB .. insert new entry in the db''' 
+      db.threadMapper.insert( { 'threadId' : msgId } )
+      logger.info("Inserting new doc")
+  else:
+    #op = { $in : { 'references' : inreplyto }}
+    op = { 'references': {'$in' : [inreplyto]}}
+    mailthread = db.threadMapper.find( op )
+
+    logger.info ("MSGID {} . inreplyto : {} . references {} ".format(msgId, inreplyto, references))
+    logger.info ("mail therad : {} \n".format( mailthread))
+    if mailthread is not None:
+        entries = list(mailthread[:])
+        logger.info(entries)
+        logger.info(len(entries))
+        if 'references' not in entries:
+          ''' if its reply path references might not be present in db .. 
+          could be very first reply to the mail thread'''
+          op = { '$push' : { 'references' : msgId }}
+          result = db.threadMapper.update( { 'threadId' : inreplyto }, op , False, False )
+          logger.info("Result : {}".format(result))
+        elif 'references' in entries:
+          '''  reply path mail need to check if its duplicate '''
+          logger.info(entries['references'])
+        else:
+          op = { '$push' : { 'references' : msgId }}
+          db.threadMapper.update( { 'threadId' : mailthread['threadId'] }, op , False, False )
+          return True
 
   for id,name in allrecipients:
     success = isregistereduser(id)
