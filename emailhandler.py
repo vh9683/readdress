@@ -151,6 +151,17 @@ def isregistereduser(a):
   """ check whether the user address is a registered one or generated one """
   return not valid_uuid4(a)
 
+def valid_email_addresses (msg,allrecipients,from_email):
+  for id,name in allrecipients:
+    success = isregistereduser(id)
+    if success:
+      return True
+  success =  getuser(from_email)
+  if success:
+    return True
+  return False
+ 
+
 def validthread(msg,allrecipients,from_email):
   """ 
       Every new thread must come from known domain and
@@ -214,8 +225,16 @@ def validthread(msg,allrecipients,from_email):
       ''' no mail with msgId found in DB .. insert new entry in the db''' 
       db.threadMapper.insert( { 'threadId' : msgId } )
       logger.info("Inserting new doc")
+      return True
+    else:
+      logger.info("Possible Duplicate mail")
+      return False
+  elif inreplyto is not None and references is not None:
+    mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
+    if mailthread is not None:
+        logger.info("Is this case possible ??? ")
+        raise ValueError("msgId present in db, inreplyto / references also received in mail")
   else:
-    #op = { $in : { 'references' : inreplyto }}
     op = { 'references': {'$in' : [inreplyto]}}
     mailthread = db.threadMapper.find( op )
 
@@ -231,23 +250,30 @@ def validthread(msg,allrecipients,from_email):
           op = { '$push' : { 'references' : msgId }}
           result = db.threadMapper.update( { 'threadId' : inreplyto }, op , False, False )
           logger.info("Result : {}".format(result))
+          return True
         elif 'references' in entries:
           '''  reply path mail need to check if its duplicate '''
           logger.info(entries['references'])
+          if msgId in entries['references']:
+            logger.info("mail already handled.. duplicate mail")
+            return False
+          else:
+            op = { '$push' : { 'references' : msgId }}
+            db.threadMapper.update( { 'threadId' : mailthread['threadId'] }, op , False, False )
+            return True
+    if mailthread is None:
+      #???    
+      mailthread = db.threadMapper.find_one( { 'threadId' : inreplyto } )
+      if mailthread is not None:
+        entries = list(mailthread[:])
+        if msgId in entries['references']:
+            return False #Dupilcate Mail
         else:
           op = { '$push' : { 'references' : msgId }}
-          db.threadMapper.update( { 'threadId' : mailthread['threadId'] }, op , False, False )
+          result = db.threadMapper.update( { 'threadId' : inreplyto }, op , False, False )
           return True
 
-  for id,name in allrecipients:
-    success = isregistereduser(id)
-    if success:
-      return True
-  success =  getuser(from_email)
-  if success:
-    return True
-  return False
-
+ 
 def isUserEmailTaggedForLI(a):
   """ Check if the user address is tagged for LI """
   user = getuser(a)
@@ -342,10 +368,15 @@ if __name__ == '__main__':
       item.append(ev)
       rclient.lpush('liarchive', pickle.dumps(item))
        
+    success = valid_email_addresses(msg, allrecipients, fromemail)
+    if not success:
+      logger.info("Not a valid mail thread!! email address check failed, dropping...")
+      raise ValueError("Invalid email addresses")
+
     success = validthread(msg, allrecipients, fromemail)
     if not success:
       logger.info("Not a valid mail thread!!, dropping...")
-      raise ValueError
+      raise ValueError("Invalid thread credentials")
     msg['X-MC-PreserveRecipients'] = 'true'
 
     ''' msg will have Message-ID In-ReplyTo and References '''
