@@ -10,9 +10,12 @@ import logging.handlers
 import copy
 import uuid
 import time
+import datetime
 import email.utils 
 from email.utils import parseaddr
 from redis import StrictRedis
+import argparse
+
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -28,12 +31,6 @@ db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 rclient = StrictRedis()
 logger = logging.getLogger('mailHandler')
-formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler.log', 
-                                            maxBytes=FILESIZE, backupCount=10)
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr) 
-logger.setLevel(logging.DEBUG)
 
 OUR_DOMAIN = 'inbound.edulead.in'
 
@@ -218,6 +215,7 @@ def validthread(msg,allrecipients,from_email):
   inreplyto = msg.get("In-Reply-To")
   if inreplyto is not None:
     inreplyto = inreplyto.strip()
+
   ''' References are seperated by '\n\t' oldest thread id being the first id in references '''
   references = msg.get('References')
   if references is not None:
@@ -270,7 +268,7 @@ def mapaddrlist(li):
   logger.info('mapaddrlist rli ' + str(rli))
   return rli
 
-def sendmail( evKey, msg, to):
+def sendmail( evKey, msg, to ):
   key = uuid.uuid4().hex + ',' + evKey
   rclient.set(key, pickle.dumps((to, msg)))
   ''' mark key to exipre after 15 secs'''
@@ -280,123 +278,143 @@ def sendmail( evKey, msg, to):
   logger.info("sendmail key {}".format(key))
   return
 
-if __name__ == '__main__':
-  instance = sys.argv[-1]
-
-  if not instance:
-    instance = "1"
-
+def emailHandler(ev, pickledEv):
   ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
   '''
-  while True:
-    item = rclient.brpoplpush('mailhandler', 'mailhandlerBackUp')
-    ev = pickle.loads(item)
-    emaildump = (ev['msg']['raw_msg'])
-    origmsg = email.message_from_string(emaildump)
-    ''' Just to keep back up of orig mail'''
-    msg = copy.deepcopy(origmsg)
-    del msg['DKIM-Signature']
-    
-    '''
-    if checkForBccmail(msg):
-      #Dropping mail
-      continue
-   '''
+  emaildump = (ev['msg']['raw_msg'])
+  origmsg = email.message_from_string(emaildump)
+  ''' Just to keep back up of orig mail'''
+  msg = copy.deepcopy(origmsg)
+  del msg['DKIM-Signature']
+  
+  '''
+  if checkForBccmail(msg):
+    #Dropping mail
+    continue
+  '''
 
-    ''' handle ev msg here 
-        1) parse raw msg
-        2) check for validity
-        3) check if bcc mail and drop the mail / do some thing
-        4) move the completed section to other parts such as li / sendmail or some thing else
-    '''
-    torecipients = getToAddresses(msg)
-    ccrecipients = getCcAddresses(msg)
-    allrecipients = torecipients + ccrecipients
-    del msg['To']
-    del msg['Cc']
+  ''' handle ev msg here 
+      1) parse raw msg
+      2) check for validity
+      3) check if bcc mail and drop the mail / do some thing
+      4) move the completed section to other parts such as li / sendmail or some thing else
+  '''
+  torecipients = getToAddresses(msg)
+  ccrecipients = getCcAddresses(msg)
+  allrecipients = torecipients + ccrecipients
+  del msg['To']
+  del msg['Cc']
 
-    success,fromemail= populate_from_addresses(msg)
-    if not success:
-      logger.info('Error adding from address')
-      raise ValueError
-
-    taggedList = []
-    for mailid,name in allrecipients:
-      if isUserEmailTaggedForLI(mailid):
-        taggedList.append(mailid)
-
-    if isUserEmailTaggedForLI(fromemail):
-        taggedList.append(fromemail)
-
-    ''' stage 2 check for Law Interception for all mails '''
-
-    if len(taggedList):
-      item = []
-      item.append(','.join(taggedList))
-      item.append(ev)
-      rclient.lpush('liarchive', pickle.dumps(item))
-       
-    success = valid_email_addresses(msg, allrecipients, fromemail)
-    if not success:
-      logger.info("Not a valid mail thread!! email address check failed, dropping...")
-      raise ValueError("Invalid email addresses")
-
-    success = validthread(msg, allrecipients, fromemail)
-    if not success:
-      logger.info("Not a valid mail thread!!, dropping...")
-      del msg
-      del origmsg
-      del ev
-      rclient.lrem('mailhandlerBackUp', 0, item)
-      continue
-
-    msg['X-MC-PreserveRecipients'] = 'true'
-
-    ''' msg will have Message-ID In-ReplyTo and References '''
-    #if 'Message-Id' in ev['msg']['headers']:
-    #  msg.add_header("Message-Id", ev['msg']['headers']['Message-Id'])
-    #if 'In-Reply-To' in ev['msg']['headers']:
-    #  msg.add_header("In-Reply-To", ev['msg']['headers']['In-Reply-To'])
-    #if 'References' in ev['msg']['headers']:
-    #  msg.add_header("References", ev['msg']['headers']['References'])
-               
-    evKey =  uuid.uuid4().hex
-    rclient.set(evKey, pickle.dumps(ev))
-    ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
-    ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
-    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
-    mail_count = 0
-    for mailid in allrecipients:
-      if not isourdomain(mailid[0]):
-        continue
-      rto = mapaddrlist(allrecipients)
-      actual = getactual(mailid[0])
-      if not actual:
-        continue
-      if mailid[1]:
-        recepient = email.utils.formataddr((mailid[1],actual))
-        tremove = email.utils.formataddr((mailid[1],mailid[0]))
-      else:
-        recepient = actual
-        tremove = mailid[0]
-      if tremove in rto:
-        rto.remove(tremove)
-      if msg['From'] in rto:
-        rto.remove(msg['From'])
-      if 'To' in msg:
-        del msg['To']
-      if 'Cc' in msg:
-        del msg['Cc']
-      logger.info('To: ' + str(rto))
-      msg['To'] = ','.join(rto)
-      logger.info("Pushing msg to sendmail list {}\n".format(recepient))
-      sendmail(evKey, msg, recepient)
- 
-    logger.info ('len of emailhandler mailhandlerBackUp is : {}'.format(rclient.llen('mailhandlerBackUp')))
-    rclient.lrem('mailhandlerBackUp', 0, item)
-    logger.info ('len of emailhandler mailhandlerBackUp is : {}'.format(rclient.llen('mailhandlerBackUp')))
-
+  success,fromemail= populate_from_addresses(msg)
+  if not success:
+    logger.info('Error adding from address')
     del origmsg
     del msg
-    del ev
+    return False
+
+  taggedList = []
+  for mailid,name in allrecipients:
+    if isUserEmailTaggedForLI(mailid):
+      taggedList.append(mailid)
+
+  if isUserEmailTaggedForLI(fromemail):
+      taggedList.append(fromemail)
+
+  ''' stage 2 check for Law Interception for all mails '''
+
+  if len(taggedList):
+    item = []
+    item.append(','.join(taggedList))
+    item.append(ev)
+    rclient.lpush('liarchive', pickle.dumps(item))
+     
+  success = validthread(msg, allrecipients, fromemail)
+  if not success:
+    logger.info("Not a valid mail thread!!, dropping...")
+    del msg
+    del origmsg
+    return False
+  
+  success = valid_email_addresses(msg, allrecipients, fromemail)
+  if not success:
+    logger.info("Not a valid mail thread!! email address check failed, dropping...")
+    del origmsg
+    del msg
+    return False
+
+  rclient.lpush('mailarchive', pickledEv)
+
+  msg['X-MC-PreserveRecipients'] = 'true'
+
+  ''' msg will have Message-ID In-ReplyTo and References '''
+  evKey =  uuid.uuid4().hex
+  #rclient.set(evKey, pickle.dumps(ev))
+  rclient.set(evKey, pickledEv)
+  ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
+  ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
+  rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+  mail_count = 0
+  for mailid in allrecipients:
+    if not isourdomain(mailid[0]):
+      continue
+    rto = mapaddrlist(allrecipients)
+    actual = getactual(mailid[0])
+    if not actual:
+      continue
+    if mailid[1]:
+      recepient = email.utils.formataddr((mailid[1],actual))
+      tremove = email.utils.formataddr((mailid[1],mailid[0]))
+    else:
+      recepient = actual
+      tremove = mailid[0]
+    if tremove in rto:
+      rto.remove(tremove)
+    if msg['From'] in rto:
+      rto.remove(msg['From'])
+    if 'To' in msg:
+      del msg['To']
+    if 'Cc' in msg:
+      del msg['Cc']
+    logger.info('To: ' + str(rto))
+    msg['To'] = ','.join(rto)
+    logger.info("Pushing msg to sendmail list {}\n".format(recepient))
+    sendmail(evKey, msg, recepient)
+ 
+  del origmsg
+  del msg
+  return True
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='EmailHandler .')
+  parser.add_argument('-i','--instance', help='Instance Num of this script ', required=True)
+  args = parser.parse_args()
+  argsdict = vars(args)
+  instance = argsdict['instance']
+
+  formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
+  hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+  hdlr.setFormatter(formatter)
+  logger.addHandler(hdlr) 
+  logger.setLevel(logging.DEBUG)
+
+
+  mailhandlerBackUp = 'mailhandlerBackUp_' + instance
+  logger.info("MailHandlerBackUp ListName : {} ".format(mailhandlerBackUp))
+
+  while True:
+    backupmail = False
+    if (rclient.llen(mailhandlerBackUp)):
+        ev = rclient.brpop (mailhandlerBackUp)
+        backupmail = True
+        pickledEv = pickle.dumps(ev)
+    else:
+        pickledEv = rclient.brpoplpush('mailhandler', mailhandlerBackUp)
+        ev = pickle.loads(pickledEv)
+    #mail handler
+    emailHandler(ev, pickledEv)
+    if(not backupmail):
+      logger.info ('len of emailhandler {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+      rclient.lrem(mailhandlerBackUp, 0, pickledEv)
+      logger.info ('len of emailhandler {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+
