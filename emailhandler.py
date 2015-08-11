@@ -207,6 +207,7 @@ def validthread(msg,allrecipients,from_email):
 
   msgId = msg.get("Message-ID") 
   if msgId is None:
+    logger.info("Message-ID not found in mail")
     return False
 
   msgId = msgId.strip()
@@ -224,25 +225,27 @@ def validthread(msg,allrecipients,from_email):
     if mailthread is None:
       ''' no mail with msgId found in DB .. insert new entry in the db''' 
       db.threadMapper.insert( { 'threadId' : msgId } )
-      logger.info("Inserting new doc")
+      logger.info("Inserting new doc {}".format(msgId))
       return True
     else:
-      logger.info("Possible Duplicate mail")
+      logger.info("Possible Duplicate mail {}".format(msgId))
       return False
-  elif inreplyto is not None and references is not None:
-    mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
-    if mailthread is not None:
-        logger.info("Is this case possible ??? ")
-        raise ValueError("msgId present in db, inreplyto / references also received in mail")
+  #elif inreplyto is not None and references is not None:
+  #  mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
+  #  if mailthread is not None:
+  #      logger.info("Is this case possible ??? ")
+  #      raise ValueError("msgId present in db, inreplyto / references also received in mail")
+  #  else:
+  #      logger.info("inreplyto is not None and references is not None")
   else:
+    mailthread = None
+    logger.info ("MSGID {} . inreplyto : {} . references {} ".format(msgId, inreplyto, references))
     op = { 'references': {'$in' : [inreplyto]}}
     mailthread = db.threadMapper.find( op )
-
-    logger.info ("MSGID {} . inreplyto : {} . references {} ".format(msgId, inreplyto, references))
-    logger.info ("mail therad : {} \n".format( mailthread))
     if mailthread is not None:
         entries = list(mailthread[:])
         logger.info(entries)
+        print(entries)
         logger.info(len(entries))
         if 'references' not in entries:
           ''' if its reply path references might not be present in db .. 
@@ -251,7 +254,8 @@ def validthread(msg,allrecipients,from_email):
           result = db.threadMapper.update( { 'threadId' : inreplyto }, op , False, False )
           logger.info("Result : {}".format(result))
           return True
-        elif 'references' in entries:
+        #elif 'references' in entries:
+        else:
           '''  reply path mail need to check if its duplicate '''
           logger.info(entries['references'])
           if msgId in entries['references']:
@@ -261,18 +265,33 @@ def validthread(msg,allrecipients,from_email):
             op = { '$push' : { 'references' : msgId }}
             db.threadMapper.update( { 'threadId' : mailthread['threadId'] }, op , False, False )
             return True
-    if mailthread is None:
+    elif mailthread is None:
       #???    
+      logger.info("mailthread is none")
       mailthread = db.threadMapper.find_one( { 'threadId' : inreplyto } )
       if mailthread is not None:
         entries = list(mailthread[:])
+        logger.info("mailthread is {}".format(entries))
+        print("mailthread is {}".format(entries))
         if msgId in entries['references']:
-            return False #Dupilcate Mail
+            logger.info("msgid already present in references : {} , {} ".format(msgId, entries['references']))
+            print("msgid already present in references : {} , {} ".format(msgId, entries['references']))
+            return False
         else:
           op = { '$push' : { 'references' : msgId }}
           result = db.threadMapper.update( { 'threadId' : inreplyto }, op , False, False )
           return True
-
+        logger.info("Is this possible .... 1\n")
+        return False
+      else:
+        logger.info("Is this possible .... 2\n")
+        return False
+    else:
+      logger.info("Is this possible .... 3\n")
+      return False
+  logger.info("Some thing wrong")
+  return False
+  
  
 def isUserEmailTaggedForLI(a):
   """ Check if the user address is tagged for LI """
@@ -362,6 +381,7 @@ if __name__ == '__main__':
         taggedList.append(fromemail)
 
     ''' stage 2 check for Law Interception for all mails '''
+
     if len(taggedList):
       item = []
       item.append(','.join(taggedList))
@@ -376,7 +396,11 @@ if __name__ == '__main__':
     success = validthread(msg, allrecipients, fromemail)
     if not success:
       logger.info("Not a valid mail thread!!, dropping...")
-      raise ValueError("Invalid thread credentials")
+      del msg
+      del origmsg
+      del ev
+      continue
+
     msg['X-MC-PreserveRecipients'] = 'true'
 
     ''' msg will have Message-ID In-ReplyTo and References '''
