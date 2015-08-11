@@ -375,10 +375,9 @@ class RecvHandler(tornado.web.RequestHandler):
       else:
         ''' stage 1 do mail archive for all mails '''
         rclient = self.settings['rclient']
-        pickledEv = pickle.dumps(ev)
-        rclient.lpush('mailarchive', pickledEv)
 
         ''' Push the entire json to mailhandler thread through redis list'''
+        pickledEv = pickle.dumps(ev)
         rclient.lpush('mailhandler', pickledEv)
 
         del pickledEv
