@@ -23,6 +23,9 @@ except pymongo.errors.ConnectionFailure as e:
   print ("Could not connect to MongoDB: %s" % e )
 
 db = conn.inbounddb
+#Set expiry after 24 hours
+db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+
 rclient = StrictRedis()
 logger = logging.getLogger('mailHandler')
 formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
@@ -220,14 +223,18 @@ def validthread(msg,allrecipients,from_email):
   if references is not None:
     references = references.strip()
 
+  timestamp = datetime.datetime.now()
+  utc_timestamp = datetime.datetime.utcnow()
+
   mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
   if mailthread is None:
     ''' no mail with msgId found in DB .. insert new entry in the db''' 
     if references is None:
-      db.threadMapper.insert( { 'threadId' : msgId } )
+      db.threadMapper.insert( { 'threadId' : msgId , "date": timestamp, "Expiry_date" : utc_timestamp} )
       logger.info("Inserting new doc {}".format(msgId))
     else:
-      db.threadMapper.insert( { 'threadId' : msgId , 'references' : references } )
+      db.threadMapper.insert( { 'threadId' : msgId, 'references' : references,
+                              "date": timestamp, "Expiry_date" : utc_timestamp} )
       logger.info("Inserting new doc {}".format(msgId))
     return True
   else:
