@@ -8,6 +8,7 @@ import mimetypes
 import pickle
 import email.utils
 import base64
+import re
 from email import encoders
 from email.message import Message
 from email.mime.audio import MIMEAudio
@@ -30,6 +31,99 @@ import logging.handlers
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
+
+class VerifyHandler(tornado.web.RequestHandler):
+  def get(self,sessionid):
+    self.render("verify.html",url="/verify/"+sessionid)
+  
+  def post(self,sessionid):
+    rclient = self.settings['rclient']
+    session = pickle.loads(rclient.get(sessionid))
+    if not session:
+      self.set_status(400)
+      self.write("Invalid session")
+      self.finish()
+      return
+    otp = self.get_argument('otp',None)
+    pincode = self.get_argument('pincode',None)
+    http_client = AsyncHTTPClient()
+    response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
+    if response.code != 200:
+      gen_log.warning('coganlys verify failed - response data ' + resdata + ' request was ' + self.body['otp'])
+      self.set_status(400)
+      self.write("Invalid session")
+      self.finish()
+      return
+    resdata = json.loads(response.body.decode())
+    gen_log.info('coganlys verify response data ' + str(resdata))
+    if resdata['status'] != 'success':
+      self.set_status(400)
+      self.write("Invalid session")
+      self.finish()
+      return
+    inbounddb = self.settings['inbounddb']
+    yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pincode': pincode})
+    self.set_status(200)
+    self.write("Verificaton Sucessful. You can now use " + session['mapped'] + " as email id.")
+    self.finish()
+    return
+
+class SignupHandler(tornado.web.RequestHandler):
+  def write_error(self,status_code,**kwargs):
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+  
+  def getdomain(self,a):
+    return a.split('@')[-1]
+  
+  def isourdomain(self, a):
+    return self.getdomain(a) == OUR_DOMAIN
+
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def post(self):
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      raise ValueError
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+    from_email = ev['msg']['from_email']
+    phonenum = ev['msg']['subject']
+    reobj = self.settings['reobj']
+    if not reobj.fullmatch(phonenum):
+      raise ValueError
+    user = yield self.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
+    if user:
+      raise ValueError
+    http_client = AsyncHTTPClient()
+    response = yield http_client.fetch("https://cognalys.com/api/v1/otp/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&mobile="+phonenum,raise_error=False)
+    if response.code != 200:
+      gen_log.warning('coganlys auth failed - response data ' + resdata)
+      raise ValueError
+    resdata = json.loads(response.body.decode())
+    gen_log.info('coganlys auth response data ' + str(resdata))
+    if resdata['status'] != 'success':
+      raise ValueError
+    session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'keymatch': resdata['keymatch'], 'otpstart': resdata['otpstart']}
+    sessionid = uuid.uuid4().hex
+    rclient = self.settings['rclient']
+    rclient.setex(sessionid,600,pickle.dumps(session))
+    msg = {'template_name': 'readdrsignup', 'email': from_email, 'global_merge_vars': [{'name': 'sessionid', 'content': sessionid}]}
+    rclient.publish('mailer',pickle.dumps(msg))
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return    
 
 class RecvHandler(tornado.web.RequestHandler):
   def write_error(self,status_code,**kwargs):
@@ -376,16 +470,22 @@ logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
 rclient = StrictRedis()
+reobj = re.compile("\+[0-9]{8,16}$")
 
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
             "rclient": rclient,
+            "reobj": reobj,
+            "coganlys_app_id": "d6487d2498fc49eabe135d0",
+            "cognalys_acc_token": "3c5f3f4003552ed5ab555fdf33679960fbb9452d",
 }
 
 application = tornado.web.Application([
     (r"/", MainHandler),
     (r"/recv", RecvHandler),
+    (r"/verify/(.*)", VerifyHandler),
+    (r"/signup", SignupHandler),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 
