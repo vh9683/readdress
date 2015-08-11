@@ -31,7 +31,7 @@ db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 rclient = StrictRedis()
 
-OUR_DOMAIN = 'inbound.edulead.in'
+OUR_DOMAIN = 'readdress.io'
 
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
 

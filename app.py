@@ -19,6 +19,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.headerregistry import Address
 from tornado.log import logging, gen_log
+from tornado.httpclient import AsyncHTTPClient
 from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
@@ -28,6 +29,8 @@ from email.utils import parseaddr
 import logging
 import logging.handlers
 
+OUR_DOMAIN = "readdress.io"
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
@@ -36,9 +39,16 @@ class VerifyHandler(tornado.web.RequestHandler):
   def get(self,sessionid):
     self.render("verify.html",url="/verify/"+sessionid)
   
+  @coroutine
   def post(self,sessionid):
     rclient = self.settings['rclient']
-    session = pickle.loads(rclient.get(sessionid))
+    gen_log.info('sessionid ' + str(sessionid))
+    if not sessionid:
+      raise ValueError
+    session = rclient.get(sessionid)
+    if not session:
+      raise ValueError
+    session = pickle.loads(session)
     if not session:
       self.set_status(400)
       self.write("Invalid session")
@@ -114,12 +124,14 @@ class SignupHandler(tornado.web.RequestHandler):
     gen_log.info('coganlys auth response data ' + str(resdata))
     if resdata['status'] != 'success':
       raise ValueError
-    session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'keymatch': resdata['keymatch'], 'otpstart': resdata['otpstart']}
+    session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'keymatch': resdata['keymatch'], 'otpstart': resdata['otp_start']}
     sessionid = uuid.uuid4().hex
     rclient = self.settings['rclient']
     rclient.setex(sessionid,600,pickle.dumps(session))
     msg = {'template_name': 'readdrsignup', 'email': from_email, 'global_merge_vars': [{'name': 'sessionid', 'content': sessionid}]}
-    rclient.publish('mailer',pickle.dumps(msg))
+    count = rclient.publish('mailer',pickle.dumps(msg))
+    gen_log.info('message ' + str(msg))
+    gen_log.info('message published to ' + str(count))
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
@@ -360,6 +372,12 @@ class RecvHandler(tornado.web.RequestHandler):
     if not ev:
       raise ValueError
     else:
+      ev = json.loads(ev, "utf-8")
+      ev = ev[0]
+
+      for to,toname in ev['msg']['to']:
+        if to == 'signup@readdress.io':
+          raise ValueError
       localtime = time.asctime( time.localtime(time.time()) )
       localtime = localtime.replace(' ', '_')
       localtime = localtime.replace(':', '_')
@@ -368,8 +386,6 @@ class RecvHandler(tornado.web.RequestHandler):
           outfile.write(str(ev))
           outfile.close()
 
-      ev = json.loads(ev, "utf-8")
-      ev = ev[0]
       if ev['msg']['spam_report']['score'] >= 5:
         gen_log.info('Spam!! from ' + ev['msg']['from_email'])
       else:
@@ -476,8 +492,8 @@ settings = {"static_path": "frontend/Freeze/",
             "inbounddb": inbounddb,
             "rclient": rclient,
             "reobj": reobj,
-            "coganlys_app_id": "d6487d2498fc49eabe135d0",
-            "cognalys_acc_token": "3c5f3f4003552ed5ab555fdf33679960fbb9452d",
+            "coganlys_app_id": "679106064d7f4c5692bcf28",
+            "cognalys_acc_token": "8707b5cec812cd940f5e80de3c725573547187af",
 }
 
 application = tornado.web.Application([
