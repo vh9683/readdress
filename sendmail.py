@@ -81,15 +81,16 @@ if __name__ == '__main__':
       tupitem = rclient.brpop (sendmailbackup)
       logger.info("Getting Mails from {}".format(sendmailbackup))
       backmail = True
-      item = pickle.loads(tupitem[1])
+      item = (tupitem[1]).decode()
     else:
       item = rclient.brpoplpush('sendmail', sendmailbackup)
       logger.info("Getting Mails from {}".format('sendmail'))
       item = item.decode()
 
     #Get the smtp msg from redis
-    if rclient.exists(item):
-      msgtuplepickle = rclient.get(item)
+    logger.info("Item : {}".format(item))
+    msgtuplepickle = rclient.get(item)
+    if msgtuplepickle:
       msgtuple = pickle.loads(msgtuplepickle)
       #Get the inbound json obj from redis
       logger.info('item is {} '.format(item))
