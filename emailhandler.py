@@ -243,8 +243,8 @@ def validthread(msg,allrecipients,from_email):
     op = { 'references': {'$in' : [inreplyto]}}
     mailthread = db.threadMapper.find( op )
     if mailthread is not None:
-        entries = dict(mailthread[:])
-        logger.info("Dict : {} ".format(entries))
+        entries = list(mailthread[:])[0]
+        logger.info("list entry : {} ".format(entries))
         logger.info(len(entries))
         if 'references' not in entries:
           ''' if its reply path references might not be present in db .. 
