@@ -243,9 +243,8 @@ def validthread(msg,allrecipients,from_email):
     op = { 'references': {'$in' : [inreplyto]}}
     mailthread = db.threadMapper.find( op )
     if mailthread is not None:
-        entries = list(mailthread[:])
-        logger.info(entries)
-        print(entries)
+        entries = dict(mailthread[:])
+        logger.info("Dict : {} ".format(entries))
         logger.info(len(entries))
         if 'references' not in entries:
           ''' if its reply path references might not be present in db .. 
@@ -263,7 +262,7 @@ def validthread(msg,allrecipients,from_email):
             return False
           else:
             op = { '$push' : { 'references' : msgId }}
-            db.threadMapper.update( { 'threadId' : mailthread['threadId'] }, op , False, False )
+            db.threadMapper.update( { 'threadId' : entries['threadId'] }, op , False, False )
             return True
     elif mailthread is None:
       #???    
