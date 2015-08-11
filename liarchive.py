@@ -37,8 +37,9 @@ if __name__ == '__main__':
   liarchivebackup = 'liarchivebackup_'+instance
   while True:
     if (rclient.llen(liarchivebackup)):
-      itemlist = rclient.brpop (liarchivebackup)
+      item = rclient.brpop (liarchivebackup)
       logger.info("Getting Mails from {}".format(liarchivebackup))
+      itemlist = pickle.loads(item[1])
       if (len(itemlist) == 2):
         db.insert( { 'tagged':itemlist[0], 'inboundJson':Binary(str(itemlist[1]).encode(), 128)} )
     else:

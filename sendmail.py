@@ -78,15 +78,16 @@ if __name__ == '__main__':
   while True:
     backmail = False
     if (rclient.llen(sendmailbackup)):
-      item = rclient.brpop (sendmailbackup)
+      tupitem = rclient.brpop (sendmailbackup)
       logger.info("Getting Mails from {}".format(sendmailbackup))
       backmail = True
+      item = pickle.loads(tupitem[1])
     else:
       item = rclient.brpoplpush('sendmail', sendmailbackup)
       logger.info("Getting Mails from {}".format('sendmail'))
+      item = item.decode()
 
     #Get the smtp msg from redis
-    item = item.decode()
     if rclient.exists(item):
       msgtuplepickle = rclient.get(item)
       msgtuple = pickle.loads(msgtuplepickle)

@@ -398,7 +398,6 @@ if __name__ == '__main__':
   logger.addHandler(hdlr) 
   logger.setLevel(logging.DEBUG)
 
-
   mailhandlerBackUp = 'mailhandlerBackUp_' + instance
   logger.info("MailHandlerBackUp ListName : {} ".format(mailhandlerBackUp))
 

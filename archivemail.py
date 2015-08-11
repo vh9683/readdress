@@ -37,7 +37,8 @@ if __name__ == '__main__':
   mailarchivebackup = 'mailarchivebackup_' + instance
   while True:
     if (rclient.llen(mailarchivebackup)):
-      message = rclient.brpop (mailarchivebackup)
+      item = rclient.brpop (mailarchivebackup)
+      message = pickle.loads (item[1])
       logger.info("Getting Mails from {}".format(mailarchivebackup))
       db.insert( {'from':message['msg']['from_email'], 'inboundJson':Binary(str(message).encode(), 128)} )
     else:
