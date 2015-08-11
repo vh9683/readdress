@@ -1,6 +1,5 @@
 #! /usr/bin/python3.4
 
-
 import sys
 from redis import StrictRedis
 from bson import Binary
@@ -9,6 +8,10 @@ import pickle
 import logging
 import logging.handlers
 import smtplib
+import argparse
+import logging
+import logging.handlers
+
 
 '''
 -------------
@@ -48,10 +51,19 @@ def sendmail(ev, msg, to, logger):
       server.quit()
 
 if __name__ == '__main__':
-  instance = sys.argv[-1]
+  parser = argparse.ArgumentParser(description='MailSender .')
+  parser.add_argument('-i','--instance', help='Instance Num of this script ', required=True)
+  args = parser.parse_args()
+  argsdict = vars(args)
+  instance = argsdict['instance']
 
-  if not instance:
-    instance = "1"
+  FILESIZE=1024*1024*1024 #1MB
+  logger = logging.getLogger('sendmail'+instance)
+  formatter = logging.Formatter('MailSender -['+instance+']:%(asctime)s %(levelname)s - %(message)s')
+  hdlr = logging.handlers.RotatingFileHandler('/var/tmp/sendmail_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+  hdlr.setFormatter(formatter)
+  logger.addHandler(hdlr) 
+  logger.setLevel(logging.DEBUG)
 
   try:
     conn=pymongo.MongoClient()
@@ -60,29 +72,30 @@ if __name__ == '__main__':
     print ("Could not connect to MongoDB: %s" % e )
 
   db = conn.inbounddb.liMailBackUp
-  r = StrictRedis()
+  rclient = StrictRedis()
 
-  logger = logging.getLogger('sendmail')
-  formatter = logging.Formatter('SENDMAIL:%(asctime)s %(levelname)s %(message)s')
-  hdlr = logging.handlers.RotatingFileHandler('/var/tmp/sendmail.log', 
-                                            maxBytes=FILESIZE, backupCount=10)
-  hdlr.setFormatter(formatter)
-  logger.addHandler(hdlr) 
-  logger.setLevel(logging.DEBUG)
-
+  sendmailbackup = 'sendmailbackup_'+instance
   while True:
-    item = r.brpoplpush('sendmail', 'sendmailbackup')
+    backmail = False
+    if (rclient.llen(sendmailbackup)):
+      item = rclient.brpop (sendmailbackup)
+      logger.info("Getting Mails from {}".format(sendmailbackup))
+      backmail = True
+    else:
+      item = rclient.brpoplpush('sendmail', sendmailbackup)
+      logger.info("Getting Mails from {}".format('sendmail'))
+
     #Get the smtp msg from redis
     item = item.decode()
-    if r.exists(item):
-      msgtuplepickle = r.get(item)
+    if rclient.exists(item):
+      msgtuplepickle = rclient.get(item)
       msgtuple = pickle.loads(msgtuplepickle)
       #Get the inbound json obj from redis
       logger.info('item is {} '.format(item))
       keys = item.split(',')
       evKey = keys[1]
-      if r.exists(evKey):
-        evpickle = r.get(evKey)
+      if rclient.exists(evKey):
+        evpickle = rclient.get(evKey)
         ev = pickle.loads(evpickle)
         sendmail(ev, msgtuple[1], msgtuple[0], logger)
       else:
@@ -90,6 +103,7 @@ if __name__ == '__main__':
     else:
         pass
     #No need to remove from redis .. it will be removed after expiry
-    logger.info('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
-    r.lrem('sendmailbackup', 0, item)
-    logger.info('len of sendmailbackup is : {}'.format(r.llen('sendmailbackup')))
+    if(backmail == False):
+      logger.info('len of {} is : {}'.format(sendmailbackup, rclient.llen(sendmailbackup)))
+      rclient.lrem(sendmailbackup, 0, item)
+      logger.info('len of {} is : {}'.format(sendmailbackup, rclient.llen(sendmailbackup)))

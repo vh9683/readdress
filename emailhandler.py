@@ -30,11 +30,10 @@ db = conn.inbounddb
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 rclient = StrictRedis()
-logger = logging.getLogger('mailHandler')
 
 OUR_DOMAIN = 'inbound.edulead.in'
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
 
 def getdomain(a):
   return a.split('@')[-1]
@@ -273,7 +272,7 @@ def sendmail( evKey, msg, to ):
   rclient.set(key, pickle.dumps((to, msg)))
   ''' mark key to exipre after 15 secs'''
   key = key.encode()
-  rclient.expire(key, 25)
+  #rclient.expire(key, 5*60)
   rclient.lpush('sendmail', key)
   logger.info("sendmail key {}".format(key))
   return
@@ -353,7 +352,7 @@ def emailHandler(ev, pickledEv):
   rclient.set(evKey, pickledEv)
   ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
   ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
-  rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+  #rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
   mail_count = 0
   for mailid in allrecipients:
     if not isourdomain(mailid[0]):
@@ -392,6 +391,7 @@ if __name__ == '__main__':
   argsdict = vars(args)
   instance = argsdict['instance']
 
+  logger = logging.getLogger('mailHandler'+instance)
   formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
   hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
   hdlr.setFormatter(formatter)
@@ -408,13 +408,15 @@ if __name__ == '__main__':
         ev = rclient.brpop (mailhandlerBackUp)
         backupmail = True
         pickledEv = pickle.dumps(ev)
+        logger.info("Getting events from {}".format(mailhandlerBackUp))
     else:
         pickledEv = rclient.brpoplpush('mailhandler', mailhandlerBackUp)
         ev = pickle.loads(pickledEv)
+        logger.info("Getting events from {}".format('mailhandler'))
     #mail handler
     emailHandler(ev, pickledEv)
     if(not backupmail):
-      logger.info ('len of emailhandler {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+      logger.info ('len of {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
       rclient.lrem(mailhandlerBackUp, 0, pickledEv)
-      logger.info ('len of emailhandler {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+      logger.info ('len of {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
 
