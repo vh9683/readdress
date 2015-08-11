@@ -341,6 +341,7 @@ if __name__ == '__main__':
       del msg
       del origmsg
       del ev
+      rclient.lrem('mailhandlerBackUp', 0, item)
       continue
 
     msg['X-MC-PreserveRecipients'] = 'true'
