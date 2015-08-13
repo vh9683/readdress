@@ -24,49 +24,46 @@ class VerifyHandler(tornado.web.RequestHandler):
     gen_log.info('sessionid ' + str(sessionid))
     if not sessionid:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return
     session = rclient.get(sessionid)
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return
     session = pickle.loads(session)
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return
     http_client = AsyncHTTPClient()
     response = yield http_client.fetch("https://cognalys.com/api/v1/otp/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&mobile="+session['phonenum'],raise_error=False)
     if response.code != 200:
       gen_log.warning('coganlys auth failed - response data ' + resdata)
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return      
     resdata = json.loads(response.body.decode())
     gen_log.info('coganlys auth response data ' + str(resdata))
     if resdata['status'] != 'success':
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return
     session['keymatch'] = resdata['keymatch']
     session['otpstart'] = resdata['otp_start']
     rclient.setex(sessionid,600,pickle.dumps(session))
     self.render("verify.html",url="/verify/"+sessionid,ostart=resdata['otp_start'])
+    return
   
   @coroutine
   def post(self,sessionid):
     rclient = self.settings['rclient']
     gen_log.info('sessionid ' + str(sessionid))
     if not sessionid:
-      raise ValueError
+      self.render("sorry.html",reason="Invalid Session. This link is not valid")
+      return
     session = rclient.get(sessionid)
     if not session:
-      raise ValueError
+      self.render("sorry.html",reason="Invalid Session. This link is not valid")
+      return
     session = pickle.loads(session)
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      self.finish()
       return
     otp = self.get_argument('otp',None)
     pincode = self.get_argument('pincode',None)
@@ -75,13 +72,11 @@ class VerifyHandler(tornado.web.RequestHandler):
     if response.code != 200:
       gen_log.warning('coganlys verify failed - response data ' + resdata + ' request was ' + self.body['otp'])
       self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
-      self.finish()
       return
     resdata = json.loads(response.body.decode())
     gen_log.info('coganlys verify response data ' + str(resdata))
     if resdata['status'] != 'success':
       self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
-      self.finish()
       return
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': session['actual']})
@@ -92,8 +87,7 @@ class VerifyHandler(tornado.web.RequestHandler):
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
-    self.render("sorry.html",reason=reason)
-    self.finish()
+    self.render("success.html",reason=reason)
     return
 
 class SignupHandler(tornado.web.RequestHandler):
