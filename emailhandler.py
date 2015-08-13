@@ -29,6 +29,9 @@ db = conn.inbounddb
 #Set expiry after 24 hours
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
+taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@readdress.io')
+subcomp = re.compile('__')
+
 rclient = StrictRedis()
 
 OUR_DOMAIN = 'readdress.io'
@@ -59,17 +62,25 @@ def getuser(a):
     user = db.users.find_one({'actual': a})
   return user
 
+def insertUser(a, m, n=None):
+  if n:
+    db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
+  else:
+    db.users.insert( { 'mapped': m, 'actual': a } )
+  return True
+
 def getmapped(a):
   user = getuser(a)
   if not user:
     return None
   return user['mapped']
 
-def newmapaddr(a):
+def newmapaddr(a, n=None):
   mapped = getmapped(a)
   if not mapped:
+    ''' better to all ttl for this address '''
     mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
-    db.users.insert({'mapped': mapped, 'actual': a})
+    insertUser( a, mapped, n)
     logger.info('insterted new ext user ' + a + ' -> ' + mapped)
   return mapped
 
@@ -77,7 +88,7 @@ def populate_from_addresses(msg):
   fromstring = msg['From']
   fromname, fromemail = parseaddr(fromstring)
   logger.info("Actual From address {} {}".format(fromname, fromemail))
-  mapped = newmapaddr(fromemail)
+  mapped = newmapaddr(fromemail, fromname)
   if not mapped:
     return False
   del msg['From']
@@ -95,8 +106,16 @@ def getToAddresses(msg):
   torecipients = []
   for toaddr in tolst:
     toname,to  = parseaddr(toaddr)
-    to = [to, toname]
-    torecipients.append(to)
+    mto = taddrcomp.match(to)
+    if mto is not None:
+      maddress = subcomp.sub('@', mto.group(1), count=1)
+      if maddress is not None:
+        insertUser( to, maddress, toname)
+        logger.info("Mapped address is : {}".format(maddress))
+        to = [maddress, toname]
+    else:
+        to = [to, toname]
+    torecipients.append( to )
   return torecipients
 
 def getCcAddresses(msg):
@@ -107,9 +126,17 @@ def getCcAddresses(msg):
   cclst = ccstring.split(',')
   cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
   for ccaddr in cclst:
-    ccname,cc  = parseaddr(ccaddr)
-    cc = [cc, ccname]
-    ccrecipients.append(cc)
+    ccname, cc = parseaddr( ccaddr )
+    mcc = taddrcomp.match(cc)
+    if mcc is not None:
+      maddress = subcomp.sub('@', mcc.group(1), count=1)
+      if maddress is not None:
+        insertUser( cc, maddress, ccname)
+        logger.info("Mapped address is : {}".format(maddress))
+        cc = [maddress, ccname]
+    else:
+      cc = [cc, ccname]
+    ccrecipients.append( cc )
   return ccrecipients
  
 
