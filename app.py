@@ -92,10 +92,15 @@ class VerifyHandler(tornado.web.RequestHandler):
       self.finish()
       return
     inbounddb = self.settings['inbounddb']
-    yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pincode': pincode})
+    user = yield inbounddb.users.find_one({'actual': session['actual']})
+    if user:
+      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pincode': pincode}})
+    else:
+      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pincode': pincode})
     rclient.delete(sessionid)
     self.set_status(200)
-    self.write("Verificaton Sucessful. You can now use " + session['mapped'] + " as email id.")
+    reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
+    self.render("sorry.html",reason=reason)
     self.finish()
     return
 
