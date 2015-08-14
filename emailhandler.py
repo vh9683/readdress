@@ -87,23 +87,33 @@ def newmapaddr(a, n=None):
 def populate_from_addresses(msg):
   fromstring = msg['From']
   fromname, fromemail = parseaddr(fromstring)
-  logger.info("Actual From address {} {}".format(fromname, fromemail))
   mapped = newmapaddr(fromemail, fromname)
   if not mapped:
     return False
   del msg['From']
   if fromname:
+    logger.info("Actual From address {} {}".format(fromname, fromemail))
     msg['From'] = email.utils.formataddr((fromname, mapped))
   else:
+    logger.info("Actual From address {}".format(fromemail))
     msg['From'] = mapped
   logger.info('From: ' + str(msg['From']))
-  return True, fromemail
+  return True, fromemail, fromname
 
+def sendInvite (invitesrcpts, fromname):
+  if fromname is None:
+    fromname = 'Readdress.io'
+  logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitercpts)))
+  for email in invitercpts:
+    msg = {'template_name': 'readdressInvite', 'email': email, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
+    count = rclient.publish('mailer',pickle.dumps(msg))
+  
 def getToAddresses(msg):
   tostring = msg.get('To')
   tolst = tostring.split(',')
   tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   torecipients = []
+  invitercpts = []
   for toaddr in tolst:
     toname,to  = parseaddr(toaddr)
     mto = taddrcomp.match(to)
@@ -111,12 +121,13 @@ def getToAddresses(msg):
       maddress = subcomp.sub('@', mto.group(1), count=1)
       if maddress is not None:
         insertUser( to, maddress, toname)
+        invitercpts.append(to)
         logger.info("Mapped address is : {}".format(maddress))
         to = [maddress, toname]
     else:
         to = [to, toname]
     torecipients.append( to )
-  return torecipients
+  return torecipients, invitercpts
 
 def getCcAddresses(msg):
   ccrecipients = []
@@ -125,6 +136,7 @@ def getCcAddresses(msg):
     return ccrecipients
   cclst = ccstring.split(',')
   cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
+  invitercpts = []
   for ccaddr in cclst:
     ccname, cc = parseaddr( ccaddr )
     mcc = taddrcomp.match(cc)
@@ -132,6 +144,7 @@ def getCcAddresses(msg):
       maddress = subcomp.sub('@', mcc.group(1), count=1)
       if maddress is not None:
         insertUser( cc, maddress, ccname)
+        invitercpts.append(cc)
         logger.info("Mapped address is : {}".format(maddress))
         cc = [maddress, ccname]
     else:
@@ -326,18 +339,27 @@ def emailHandler(ev, pickledEv):
       3) check if bcc mail and drop the mail / do some thing
       4) move the completed section to other parts such as li / sendmail or some thing else
   '''
-  torecipients = getToAddresses(msg)
-  ccrecipients = getCcAddresses(msg)
+  totalinvitercpts = []
+  torecipients, toinvites = getToAddresses(msg)
+  ccrecipients, ccinvites = getCcAddresses(msg)
   allrecipients = torecipients + ccrecipients
+
+  if toinvites:
+    totalinvitercpts += toinvites
+  if ccinvites:
+    totalinvitercpts += ccinvites
+
   del msg['To']
   del msg['Cc']
 
-  success,fromemail= populate_from_addresses(msg)
+  success,fromemail,fromname = populate_from_addresses(msg)
   if not success:
     logger.info('Error adding from address')
     del origmsg
     del msg
     return False
+
+  sendInvite(totalinvitercpts, fromname)
 
   taggedList = []
   for mailid,name in allrecipients:
