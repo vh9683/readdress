@@ -65,8 +65,8 @@ class VerifyHandler(tornado.web.RequestHandler):
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
       return
-    otp = self.get_argument('otp',None)
-    pincode = self.get_argument('pincode',None)
+    otp = self.get_argument('otp','junk')
+    pluscode = self.get_argument('pluscode','BADCODE')
     http_client = AsyncHTTPClient()
     response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
     if response.code != 200:
@@ -81,12 +81,16 @@ class VerifyHandler(tornado.web.RequestHandler):
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': session['actual']})
     if user:
-      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pincode': pincode}})
+      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name']}})
     else:
-      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pincode': pincode})
+      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name']})
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
+    msg = {'template_name': 'readdresswelcome', 'email': from_email, 'global_merge_vars': [{'name': 'name', 'content': session['name']},{'name': 'id', 'content': session['mapped']}]}
+    count = rclient.publish('mailer',pickle.dumps(msg))
+    gen_log.info('message ' + str(msg))
+    gen_log.info('message published to ' + str(count))
     self.render("success.html",reason=reason)
     return
 
@@ -123,20 +127,31 @@ class SignupHandler(tornado.web.RequestHandler):
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
     from_email = ev['msg']['from_email']
+    from_name = ev['msg']['from_name']
+    if from_name is None or from_name is '':
+      from_name = 'There'
     phonenum = ev['msg']['subject']
     reobj = self.settings['reobj']
     if not reobj.fullmatch(phonenum):
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
       self.set_status(200)
       self.write({'status': 200})
       self.finish()
       return
     user = yield self.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
     if user:
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Phone number given already associated with an email id, please check and retry with different phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
       self.set_status(200)
       self.write({'status': 200})
       self.finish()
       return
-    session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum}
+    session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum, 'name': from_name}
     sessionid = uuid.uuid4().hex
     rclient = self.settings['rclient']
     rclient.setex(sessionid,600,pickle.dumps(session))
