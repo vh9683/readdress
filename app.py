@@ -325,7 +325,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
 
   @coroutine
   def sendInvite (mailid, fromname):
-    logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
+    logger.info("Sending invites from {} to {}".format(fromname, mailid))
     inbounddb = self.settings['inbounddb']
     rclient = self.settings['rclient']
     if fromname is None:
