@@ -324,7 +324,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     return user
 
   @coroutine
-  def sendInvite (mailid, fromname):
+  def sendInvite (self, mailid, fromname):
     logger.info("Sending invites from {} to {}".format(fromname, mailid))
     inbounddb = self.settings['inbounddb']
     rclient = self.settings['rclient']
@@ -363,6 +363,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     mailreobj = self.settings['mailreobj']
     rclient = self.settings['rclient']
     from_email = ev['msg']['from_email']
+    from_name = ev['msg']['from_name']
     friendemail = ev['msg']['subject']
     if not mailreobj.fullmatch(friendemail):
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
