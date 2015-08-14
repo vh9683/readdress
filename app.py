@@ -330,7 +330,6 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     rclient = self.settings['rclient']
     if fromname is None:
       fromname = ""
-
     user = yield inbounddb.invitesRecipients.find_one( { 'email' : mailid } )
     if not user:
       utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
@@ -340,7 +339,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
       gen_log.info('message ' + str(msg))
       gen_log.info('message published to ' + str(count))
     else:
-      gen_log.info('Invitation already sent to {}, resending cannot be done until expiry'.format(mailid)
+      gen_log.info('Invitation already sent to {}, resending cannot be done until expiry'.format(mailid))
     return
 
   @coroutine
@@ -365,7 +364,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     rclient = self.settings['rclient']
     from_email = ev['msg']['from_email']
     friendemail = ev['msg']['subject']
-    if not mailreobj.fullmatch(friendemail)
+    if not mailreobj.fullmatch(friendemail):
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -392,7 +391,6 @@ class InviteFriendHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
-
 
 class RecvHandler(tornado.web.RequestHandler):
   def authenticatepost(self):
@@ -430,7 +428,7 @@ class RecvHandler(tornado.web.RequestHandler):
       self.write('Bad Request')
       self.finish()
       return
-    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io']
+    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io']
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
     if not ev:
