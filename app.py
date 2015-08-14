@@ -5,6 +5,9 @@ import sys
 import uuid
 import pickle
 import re
+import hashlib
+import hmac
+import base64
 from tornado.log import logging, gen_log
 from tornado.httpclient import AsyncHTTPClient
 from motor import MotorClient
@@ -97,7 +100,7 @@ class VerifyHandler(tornado.web.RequestHandler):
 class SignupHandler(tornado.web.RequestHandler):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path]
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
     if 'X-Mandrill-Signature' in self.request.headers:
       rcvdsignature = self.request.headers['X-Mandrill-Signature']
     else:
@@ -107,10 +110,11 @@ class SignupHandler(tornado.web.RequestHandler):
     argkeys = sorted(self.request.arguments.keys())
     for arg in argkeys:
       data += arg
-      data += self.request.arguments[arg].decode()
-    gen_log.info('data ' + str(data))
-    hashed = hmac.new(authkey,data,hashlib.sha1)
-    asignature = hashed.digest().encode("base64").rstrip('\n')
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
     gen_log.info('asignature ' + str(asignature))
     return asignature == rcvdsignature
 
@@ -140,7 +144,11 @@ class SignupHandler(tornado.web.RequestHandler):
     if self.authenticatepost():
       gen_log.info('post authenticated successfully')
     else:
-      gen_log.info('post authentication failed')
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
     ev = self.get_argument('mandrill_events',False)
     if not ev:
       self.set_status(200)
@@ -189,6 +197,26 @@ class SignupHandler(tornado.web.RequestHandler):
     return    
 
 class PluscodeHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -212,6 +240,14 @@ class PluscodeHandler(tornado.web.RequestHandler):
 
   @coroutine
   def post(self):
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
     ev = self.get_argument('mandrill_events',False)
     if not ev:
       self.set_status(200)
@@ -246,6 +282,26 @@ class PluscodeHandler(tornado.web.RequestHandler):
       return
 
 class RecvHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -253,6 +309,14 @@ class RecvHandler(tornado.web.RequestHandler):
     return
   
   def post(self):
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
     ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io']
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
