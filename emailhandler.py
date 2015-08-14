@@ -32,7 +32,10 @@ db = conn.inbounddb
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 #TTL for invites users .. expiry after 5 mins
-db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+db.users.ensure_index("Expiry_date", expireAfterSeconds=5*60*60)
+
+#expire after 30days from now
+db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@readdress.io')
 subcomp = re.compile('__')
@@ -72,15 +75,18 @@ def insertUser(a, m, n=None, setExpiry = False):
   if user:
     return True
 
-  if n:
-    db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
-  else:
-    db.users.insert( { 'mapped': m, 'actual': a } )
-  
   if setExpiry:
     utc_timestamp = datetime.datetime.utcnow()
-    db.users.update( { 'mapped': m} , {'mapped' : m, 'actual' : a , 'Expiry_date': utc_timestamp } )
-
+    if n:
+      db.users.insert( {'mapped': m, 'actual': a, 'name' : n, 'Expiry_date' : utc_timestamp} )
+    else:
+      db.users.insert( { 'mapped': m, 'actual': a, 'Expiry_date': utc_timestamp } )
+  else:
+    if n:
+      db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
+    else:
+      db.users.insert( { 'mapped': m, 'actual': a } )
+  
   return True
 
 def getmapped(a):
@@ -89,12 +95,12 @@ def getmapped(a):
     return None
   return user['mapped']
 
-def newmapaddr(a, n=None):
+def newmapaddr(a, n=None, setExpiry=None):
   mapped = getmapped(a)
   if not mapped:
     ''' better to all ttl for this address '''
     mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
-    insertUser( a, mapped, n)
+    insertUser( a, mapped, n , setExpiry)
     logger.info('insterted new ext user ' + a + ' -> ' + mapped)
   return mapped
 
@@ -115,12 +121,16 @@ def populate_from_addresses(msg):
   return True, fromemail, fromname
 
 def sendInvite (invitesrcpts, fromname):
-  if fromname is None:
-    fromname = 'Readdress.io'
   logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
+  if fromname is None:
+    fromname = ""
   for email in invitesrcpts:
-    msg = {'template_name': 'readdressInvite', 'email': email, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
-    count = rclient.publish('mailer',pickle.dumps(msg))
+    user = db.invitesRecipients.find( { 'email' : email } )
+    if not user:
+      utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+      user = db.invitesRecipients.insert( { 'email' : email, 'Expiry_date' : utc_timestamp } )
+      msg = {'template_name': 'readdressInvite', 'email': email, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
   
 def getToAddresses(msg):
   torecipients = []
@@ -136,9 +146,11 @@ def getToAddresses(msg):
     if mto is not None:
       maddress = subcomp.sub('@', mto.group(1), count=1)
       if maddress is not None:
-        mapped = newmapaddr(maddress, toname)
-        invitercpts.append(maddress)
-        logger.info("Mapped address is : {}".format(maddress))
+        mapped = getmapped(a)
+        if not mapped:
+          invitercpts.append(maddress)
+        newmapaddr(maddress, toname, True)
+        logger.info("changed address is : {} , {}".format(maddress,toname))
         to = [maddress, toname]
     else:
         to = [to, toname]
@@ -159,8 +171,10 @@ def getCcAddresses(msg):
     if mcc is not None:
       maddress = subcomp.sub('@', mcc.group(1), count=1)
       if maddress is not None:
-        mapped = newmapaddr(maddress, ccname)
-        invitercpts.append(maddress)
+        mapped = getmapped(maddress)
+        if not mapped:
+          invitercpts.append(maddress)
+        newmapaddr(maddress, ccname, True)
         logger.info("Mapped address is : {}".format(maddress))
         cc = [maddress, ccname]
     else:
@@ -294,7 +308,6 @@ def validthread(msg,allrecipients,from_email):
     logger.info("Possible Duplicate mail {}".format(msgId))
     return False
 
-   
 def isUserEmailTaggedForLI(a):
   """ Check if the user address is tagged for LI """
   user = getuser(a)
@@ -363,6 +376,9 @@ def emailHandler(ev, pickledEv):
   allrecipients = torecipients + ccrecipients
 
   totalinvitercpts = toinvites + ccinvites
+  for mailid,name in allrecipients:
+    if not isregistereduser(mailid):
+      totalinvitercpts.append(mailid)
 
   del msg['To']
   del msg['Cc']
@@ -444,6 +460,8 @@ def emailHandler(ev, pickledEv):
     logger.info("Pushing msg to sendmail list {}\n".format(recepient))
     sendmail(evKey, msg, recepient)
  
+  sendInvite(totalinvitercpts, fromname)
+
   del origmsg
   del msg
   return True
