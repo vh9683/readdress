@@ -230,7 +230,7 @@ class RecvHandler(tornado.web.RequestHandler):
     return
   
   def post(self):
-    ignored = ['signup@readdress.io','noreply@readdress.io']
+    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io']
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
     if not ev:
