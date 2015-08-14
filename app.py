@@ -95,6 +95,25 @@ class VerifyHandler(tornado.web.RequestHandler):
     return
 
 class SignupHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path]
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      data += self.request.arguments[arg].decode()
+    gen_log.info('data ' + str(data))
+    hashed = hmac.new(authkey,data,hashlib.sha1)
+    asignature = hashed.digest().encode("base64").rstrip('\n')
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -118,6 +137,10 @@ class SignupHandler(tornado.web.RequestHandler):
 
   @coroutine
   def post(self):
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed')
     ev = self.get_argument('mandrill_events',False)
     if not ev:
       self.set_status(200)
@@ -281,6 +304,7 @@ settings = {"static_path": "frontend/Freeze/",
             "reobj": reobj,
             "coganlys_app_id": "679106064d7f4c5692bcf28",
             "cognalys_acc_token": "8707b5cec812cd940f5e80de3c725573547187af",
+            "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA", "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q", "/pluscode": "oKkvJSC7REP5uvojOBFcfg"},
 }
 
 application = tornado.web.Application([
