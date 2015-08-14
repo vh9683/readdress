@@ -25,9 +25,14 @@ try:
 except pymongo.errors.ConnectionFailure as e:
   print ("Could not connect to MongoDB: %s" % e )
 
+logger = logging.getLogger('mailHandler')
+
 db = conn.inbounddb
 #Set expiry after 24 hours
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+
+#TTL for invites users .. expiry after 5 mins
+db.users.ensure_index("Expiry_date", expireAfterSeconds=5*60)
 
 taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@readdress.io')
 subcomp = re.compile('__')
@@ -55,18 +60,34 @@ def isknowndomain(a):
     return False
   return True
 
-def getuser(a):
-  if isourdomain(a):
-    user = db.users.find_one({'mapped': a})
+def getuser(a ,rev=False):
+  if not rev:
+    if isourdomain(a):
+      user = db.users.find_one({'mapped': a})
+    else:
+      user = db.users.find_one({'actual': a})
   else:
-    user = db.users.find_one({'actual': a})
+    if isourdomain(a):
+      user = db.users.find_one({'actual': a})
+    else:
+      user = db.users.find_one({'mapped': a})
+
   return user
 
-def insertUser(a, m, n=None):
+def insertUser(a, m, n=None, reverse = False):
+  user = getuser(a, reverse)
+  if user:
+    return True
+
+  utc_timestamp = datetime.datetime.utcnow()
   if n:
     db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
   else:
     db.users.insert( { 'mapped': m, 'actual': a } )
+  
+  if reverse:
+    db.users.update( { 'mapped': m} , {'mapped' : m, 'actual' : a , 'Expiry_date': utc_timestamp } )
+
   return True
 
 def getmapped(a):
@@ -103,28 +124,27 @@ def populate_from_addresses(msg):
 def sendInvite (invitesrcpts, fromname):
   if fromname is None:
     fromname = 'Readdress.io'
-  logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitercpts)))
-  for email in invitercpts:
+  logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
+  for email in invitesrcpts:
     msg = {'template_name': 'readdressInvite', 'email': email, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
     count = rclient.publish('mailer',pickle.dumps(msg))
   
 def getToAddresses(msg):
-  tostring = msg.get('To')
-  if tostring is None:
-    return None, None
-
-  tolst = tostring.split(',')
-  tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   torecipients = []
   invitercpts = []
+  tostring = msg.get('To')
+  if tostring is None:
+    return torecipients, invitercpts
+  tolst = tostring.split(',')
+  tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   for toaddr in tolst:
     toname,to  = parseaddr(toaddr)
     mto = taddrcomp.match(to)
     if mto is not None:
       maddress = subcomp.sub('@', mto.group(1), count=1)
       if maddress is not None:
-        insertUser( to, maddress, toname)
-        invitercpts.append(to)
+        insertUser( to, maddress, toname, True)
+        invitercpts.append(maddress)
         logger.info("Mapped address is : {}".format(maddress))
         to = [maddress, toname]
     else:
@@ -137,7 +157,7 @@ def getCcAddresses(msg):
   invitercpts = []
   ccstring = msg.get('Cc')
   if ccstring is None:
-    return None, None
+    return ccrecipients, invitercpts
   cclst = ccstring.split(',')
   cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
   for ccaddr in cclst:
@@ -146,8 +166,8 @@ def getCcAddresses(msg):
     if mcc is not None:
       maddress = subcomp.sub('@', mcc.group(1), count=1)
       if maddress is not None:
-        insertUser( cc, maddress, ccname)
-        invitercpts.append(cc)
+        insertUser( cc, maddress, ccname, True)
+        invitercpts.append(maddress)
         logger.info("Mapped address is : {}".format(maddress))
         cc = [maddress, ccname]
     else:
@@ -347,17 +367,9 @@ def emailHandler(ev, pickledEv):
   torecipients, toinvites = getToAddresses(msg)
   ccrecipients, ccinvites = getCcAddresses(msg)
 
-  if torecipients:
-    allrecipients += torecipients 
+  allrecipients = torecipients + ccrecipients
 
-  if ccrecipients:
-    allrecipients += ccrecipients
-
-  if toinvites:
-    totalinvitercpts += toinvites
-
-  if ccinvites:
-    totalinvitercpts += ccinvites
+  totalinvitercpts = toinvites + ccinvites
 
   del msg['To']
   del msg['Cc']
@@ -369,9 +381,9 @@ def emailHandler(ev, pickledEv):
     del msg
     return False
 
-  sendInvite(totalinvitercpts, fromname)
 
   taggedList = []
+  logger.info ("All recipients {}".format(allrecipients))
   for mailid,name in allrecipients:
     if isUserEmailTaggedForLI(mailid):
       taggedList.append(mailid)
@@ -401,6 +413,7 @@ def emailHandler(ev, pickledEv):
     del msg
     return False
 
+  logger.info("sendmail to mailarchive")
   rclient.lpush('mailarchive', pickledEv)
 
   msg['X-MC-PreserveRecipients'] = 'true'
@@ -413,6 +426,7 @@ def emailHandler(ev, pickledEv):
   ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
   #rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
   mail_count = 0
+  logger.info("All recipients {}".format(allrecipients))
   for mailid in allrecipients:
     if not isourdomain(mailid[0]):
       continue
@@ -450,7 +464,6 @@ if __name__ == '__main__':
   argsdict = vars(args)
   instance = argsdict['instance']
 
-  logger = logging.getLogger('mailHandler'+instance)
   formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
   hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
   hdlr.setFormatter(formatter)
