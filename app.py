@@ -165,6 +165,63 @@ class SignupHandler(tornado.web.RequestHandler):
     self.finish()
     return    
 
+class PluscodeHandler(tornado.web.RequestHandler):
+  def write_error(self,status_code,**kwargs):
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+  
+  def getdomain(self,a):
+    return a.split('@')[-1]
+  
+  def isourdomain(self, a):
+    return self.getdomain(a) == OUR_DOMAIN
+
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def post(self):
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+    from_email = ev['msg']['from_email']
+    pluscode = ev['msg']['subject']
+    rclient = self.settings['rclient']
+    user = yield self.getuser(from_email)
+    if user:
+      inbounddb = self.settings['inbounddb']
+      yield inbounddb.users.update({'actual': from_email},{'$set': {'pluscode': pluscode}})
+      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "succeeded, do keep it updated"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    else:
+      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, you haven't signed up yet, provide your correct plus+code during signup"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
 class RecvHandler(tornado.web.RequestHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
@@ -231,6 +288,7 @@ application = tornado.web.Application([
     (r"/recv", RecvHandler),
     (r"/verify/(.*)", VerifyHandler),
     (r"/signup", SignupHandler),
+    (r"/pluscode", PluscodeHandler),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 
