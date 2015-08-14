@@ -27,6 +27,8 @@ except pymongo.errors.ConnectionFailure as e:
 
 logger = logging.getLogger('mailHandler')
 
+OUR_DOMAIN = 'readdress.io'
+
 db = conn.inbounddb
 #Set expiry after 24 hours
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
@@ -37,12 +39,13 @@ db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 #expire after 30days from now
 db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
-taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@readdress.io')
+#below regex objs are for handling new thread mails
+taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@'+OUR_DOMAIN)
+
 subcomp = re.compile('__')
 
 rclient = StrictRedis()
 
-OUR_DOMAIN = 'readdress.io'
 
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
 
@@ -99,7 +102,7 @@ def newmapaddr(a, n=None, setExpiry=None):
   sendInvite2User = False
   mapped = getmapped(a)
   if not mapped:
-    ''' better to all ttl for this address '''
+    ''' better to add ttl for this address '''
     mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
     insertUser( a, mapped, n , setExpiry)
     logger.info('insterted new ext user ' + a + ' -> ' + mapped)

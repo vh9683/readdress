@@ -281,6 +281,119 @@ class PluscodeHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
+class InviteFriendHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
+  def write_error(self,status_code,**kwargs):
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+  
+  def getdomain(self,a):
+    return a.split('@')[-1]
+  
+  def isourdomain(self, a):
+    return self.getdomain(a) == OUR_DOMAIN
+
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def sendInvite (mailid, fromname):
+    logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
+    inbounddb = self.settings['inbounddb']
+    rclient = self.settings['rclient']
+    if fromname is None:
+      fromname = ""
+
+    user = yield inbounddb.invitesRecipients.find_one( { 'email' : mailid } )
+    if not user:
+      utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+      user = yield inbounddb.invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
+      msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+    else:
+      gen_log.info('Invitation already sent to {}, resending cannot be done until expiry'.format(mailid)
+    return
+
+  @coroutine
+  def post(self):
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+    mailreobj = self.settings['mailreobj']
+    rclient = self.settings['rclient']
+    from_email = ev['msg']['from_email']
+    friendemail = ev['msg']['subject']
+    if not mailreobj.fullmatch(friendemail)
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    user = yield self.getuser(from_email)
+    #only registered users can use this facility
+    if user:
+      self.sendInvite(friendemail, from_name)
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    else:
+      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, you haven't signed up yet, please signup to use invite others to readdress.io"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+
 class RecvHandler(tornado.web.RequestHandler):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
@@ -358,14 +471,20 @@ class RecvHandler(tornado.web.RequestHandler):
 logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
+
+#expire after 30days from now
+inbounddb.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
+
 rclient = StrictRedis()
 reobj = re.compile("\+[0-9]{8,16}$")
+mailreobj = re.compile('([\w.-]+)@([\w.-]+)')
 
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
             "rclient": rclient,
             "reobj": reobj,
+            "mailreobj": mailreobj,
             "coganlys_app_id": "679106064d7f4c5692bcf28",
             "cognalys_acc_token": "8707b5cec812cd940f5e80de3c725573547187af",
             "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA", "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q", "/pluscode": "oKkvJSC7REP5uvojOBFcfg"},
@@ -377,6 +496,7 @@ application = tornado.web.Application([
     (r"/verify/(.*)", VerifyHandler),
     (r"/signup", SignupHandler),
     (r"/pluscode", PluscodeHandler),
+    (r"/inviteafriend", InviteFriendHandler),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 
