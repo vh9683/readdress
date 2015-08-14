@@ -110,6 +110,9 @@ def sendInvite (invitesrcpts, fromname):
   
 def getToAddresses(msg):
   tostring = msg.get('To')
+  if tostring is None:
+    return None, None
+
   tolst = tostring.split(',')
   tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   torecipients = []
@@ -131,12 +134,12 @@ def getToAddresses(msg):
 
 def getCcAddresses(msg):
   ccrecipients = []
+  invitercpts = []
   ccstring = msg.get('Cc')
   if ccstring is None:
-    return ccrecipients
+    return None, None
   cclst = ccstring.split(',')
   cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
-  invitercpts = []
   for ccaddr in cclst:
     ccname, cc = parseaddr( ccaddr )
     mcc = taddrcomp.match(cc)
@@ -339,13 +342,20 @@ def emailHandler(ev, pickledEv):
       3) check if bcc mail and drop the mail / do some thing
       4) move the completed section to other parts such as li / sendmail or some thing else
   '''
+  allrecipients = []
   totalinvitercpts = []
   torecipients, toinvites = getToAddresses(msg)
   ccrecipients, ccinvites = getCcAddresses(msg)
-  allrecipients = torecipients + ccrecipients
+
+  if torecipients:
+    allrecipients += torecipients 
+
+  if ccrecipients:
+    allrecipients += ccrecipients
 
   if toinvites:
     totalinvitercpts += toinvites
+
   if ccinvites:
     totalinvitercpts += ccinvites
 
