@@ -111,7 +111,7 @@ def populate_from_addresses(msg):
   fromname, fromemail = parseaddr(fromstring)
   mapped, sendInvite2User = newmapaddr(fromemail, fromname, True)
   if not mapped:
-    return False, fromemail, fromname, sendInvite2User
+    return False, sendInvite2User
   del msg['From']
 
   if not isregistereduser(mapped):
@@ -124,7 +124,7 @@ def populate_from_addresses(msg):
     logger.info("Actual From address {}".format(fromemail))
     msg['From'] = mapped
   logger.info('From: ' + str(msg['From']))
-  return True, fromemail, fromname, sendInvite2User
+  return True, sendInvite2User
 
 def sendInvite (invitesrcpts, fromname):
   logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
@@ -394,12 +394,16 @@ def emailHandler(ev, pickledEv):
   del msg['To']
   del msg['Cc']
 
-  success,fromemail,fromname, sendInvite2User = populate_from_addresses(msg)
+  success,sendInvite2User = populate_from_addresses(msg)
   if not success:
     logger.info('Error adding from address')
     del origmsg
     del msg
     return False
+
+  fromemail = ev['msg']['from_email']
+  
+  fromname = ev['msg']['from_name']
 
   if sendInvite2User:
     totalinvitercpts.append(fromemail)
