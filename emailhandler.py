@@ -32,7 +32,7 @@ db = conn.inbounddb
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 #TTL for invites users .. expiry after 5 mins
-db.users.ensure_index("Expiry_date", expireAfterSeconds=5*60*60)
+db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 #expire after 30days from now
 db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
@@ -96,40 +96,46 @@ def getmapped(a):
   return user['mapped']
 
 def newmapaddr(a, n=None, setExpiry=None):
+  sendInvite2User = False
   mapped = getmapped(a)
   if not mapped:
     ''' better to all ttl for this address '''
     mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
     insertUser( a, mapped, n , setExpiry)
     logger.info('insterted new ext user ' + a + ' -> ' + mapped)
-  return mapped
+    sendInvite2User = True
+  return mapped, sendInvite2User
 
 def populate_from_addresses(msg):
   fromstring = msg['From']
   fromname, fromemail = parseaddr(fromstring)
-  mapped = newmapaddr(fromemail, fromname)
+  mapped, sendInvite2User = newmapaddr(fromemail, fromname, True)
   if not mapped:
-    return False
+    return False, fromemail, fromname, sendInvite2User
   del msg['From']
+
+  if not isregistereduser(mapped):
+    sendInvite2User = True
+
   if fromname:
-    logger.info("Actual From address {} {}".format(fromname, fromemail))
+    logger.info("Actual From address {} / {}".format(fromname, fromemail))
     msg['From'] = email.utils.formataddr((fromname, mapped))
   else:
     logger.info("Actual From address {}".format(fromemail))
     msg['From'] = mapped
   logger.info('From: ' + str(msg['From']))
-  return True, fromemail, fromname
+  return True, fromemail, fromname, sendInvite2User
 
 def sendInvite (invitesrcpts, fromname):
   logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
   if fromname is None:
     fromname = ""
-  for email in invitesrcpts:
-    user = db.invitesRecipients.find( { 'email' : email } )
+  for mailid in invitesrcpts:
+    user = db.invitesRecipients.find_one( { 'email' : mailid } )
     if not user:
       utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-      user = db.invitesRecipients.insert( { 'email' : email, 'Expiry_date' : utc_timestamp } )
-      msg = {'template_name': 'readdressInvite', 'email': email, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
+      user = db.invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
+      msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
   
 def getToAddresses(msg):
@@ -376,19 +382,27 @@ def emailHandler(ev, pickledEv):
   allrecipients = torecipients + ccrecipients
 
   totalinvitercpts = toinvites + ccinvites
-  for mailid,name in allrecipients:
-    if not isregistereduser(mailid):
-      totalinvitercpts.append(mailid)
+  for mailid in allrecipients:
+    logger.info("mail : {} ".format(mailid))
+    user = getmapped(mailid[0])
+    if user:
+      if not isregistereduser(user):
+        totalinvitercpts.append(mailid[0])
+    else:
+        totalinvitercpts.append(mailid[0])
 
   del msg['To']
   del msg['Cc']
 
-  success,fromemail,fromname = populate_from_addresses(msg)
+  success,fromemail,fromname, sendInvite2User = populate_from_addresses(msg)
   if not success:
     logger.info('Error adding from address')
     del origmsg
     del msg
     return False
+
+  if sendInvite2User:
+    totalinvitercpts.append(fromemail)
 
   taggedList = []
   logger.info ("All recipients {}".format(allrecipients))
@@ -460,8 +474,8 @@ def emailHandler(ev, pickledEv):
     logger.info("Pushing msg to sendmail list {}\n".format(recepient))
     sendmail(evKey, msg, recepient)
  
-  sendInvite(totalinvitercpts, fromname)
 
+  sendInvite(totalinvitercpts, fromname)
   del origmsg
   del msg
   return True
