@@ -87,7 +87,7 @@ class VerifyHandler(tornado.web.RequestHandler):
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
-    msg = {'template_name': 'readdresswelcome', 'email': from_email, 'global_merge_vars': [{'name': 'name', 'content': session['name']},{'name': 'id', 'content': session['mapped']}]}
+    msg = {'template_name': 'readdresswelcome', 'email': session['actual'], 'global_merge_vars': [{'name': 'name', 'content': session['name']},{'name': 'id', 'content': session['mapped']}]}
     count = rclient.publish('mailer',pickle.dumps(msg))
     gen_log.info('message ' + str(msg))
     gen_log.info('message published to ' + str(count))
@@ -132,6 +132,7 @@ class SignupHandler(tornado.web.RequestHandler):
       from_name = 'There'
     phonenum = ev['msg']['subject']
     reobj = self.settings['reobj']
+    rclient = self.settings['rclient']
     if not reobj.fullmatch(phonenum):
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
