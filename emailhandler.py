@@ -32,7 +32,7 @@ db = conn.inbounddb
 db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 #TTL for invites users .. expiry after 5 mins
-db.users.ensure_index("Expiry_date", expireAfterSeconds=5*60)
+db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
 taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@readdress.io')
 subcomp = re.compile('__')
@@ -60,32 +60,25 @@ def isknowndomain(a):
     return False
   return True
 
-def getuser(a ,rev=False):
-  if not rev:
-    if isourdomain(a):
-      user = db.users.find_one({'mapped': a})
-    else:
-      user = db.users.find_one({'actual': a})
+def getuser(a):
+  if isourdomain(a):
+    user = db.users.find_one({'mapped': a})
   else:
-    if isourdomain(a):
-      user = db.users.find_one({'actual': a})
-    else:
-      user = db.users.find_one({'mapped': a})
-
+    user = db.users.find_one({'actual': a})
   return user
 
-def insertUser(a, m, n=None, reverse = False):
-  user = getuser(a, reverse)
+def insertUser(a, m, n=None, setExpiry = False):
+  user = getuser(a)
   if user:
     return True
 
-  utc_timestamp = datetime.datetime.utcnow()
   if n:
     db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
   else:
     db.users.insert( { 'mapped': m, 'actual': a } )
   
-  if reverse:
+  if setExpiry:
+    utc_timestamp = datetime.datetime.utcnow()
     db.users.update( { 'mapped': m} , {'mapped' : m, 'actual' : a , 'Expiry_date': utc_timestamp } )
 
   return True
@@ -143,7 +136,7 @@ def getToAddresses(msg):
     if mto is not None:
       maddress = subcomp.sub('@', mto.group(1), count=1)
       if maddress is not None:
-        insertUser( to, maddress, toname, True)
+        mapped = newmapaddr(maddress, toname)
         invitercpts.append(maddress)
         logger.info("Mapped address is : {}".format(maddress))
         to = [maddress, toname]
@@ -166,7 +159,7 @@ def getCcAddresses(msg):
     if mcc is not None:
       maddress = subcomp.sub('@', mcc.group(1), count=1)
       if maddress is not None:
-        insertUser( cc, maddress, ccname, True)
+        mapped = newmapaddr(maddress, ccname)
         invitercpts.append(maddress)
         logger.info("Mapped address is : {}".format(maddress))
         cc = [maddress, ccname]
@@ -381,7 +374,6 @@ def emailHandler(ev, pickledEv):
     del msg
     return False
 
-
   taggedList = []
   logger.info ("All recipients {}".format(allrecipients))
   for mailid,name in allrecipients:
@@ -391,8 +383,7 @@ def emailHandler(ev, pickledEv):
   if isUserEmailTaggedForLI(fromemail):
       taggedList.append(fromemail)
 
-  ''' stage 2 check for Law Interception for all mails '''
-
+  # check for Law Interception for all mails 
   if len(taggedList):
     item = []
     item.append(','.join(taggedList))
