@@ -8,6 +8,7 @@ import pickle
 import argparse
 import logging
 import logging.handlers
+import datetime
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Archiver .')
@@ -32,6 +33,8 @@ if __name__ == '__main__':
 
   db = conn.inbounddb.mailBackup
 
+  db.ensure_index("Expiry_date", expireAfterSeconds=0)
+
   rclient = StrictRedis()
 
   mailarchivebackup = 'mailarchivebackup_' + instance
@@ -40,12 +43,14 @@ if __name__ == '__main__':
       item = rclient.brpop (mailarchivebackup)
       message = pickle.loads (item[1])
       logger.info("Getting Mails from {}".format(mailarchivebackup))
-      db.insert( {'from':message['msg']['from_email'], 'inboundJson':Binary(str(message).encode(), 128)} )
+      utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+      db.insert( {'from':message['msg']['from_email'], 'Expiry_date' : utc_timestamp, 'inboundJson':Binary(str(message).encode(), 128)} )
     else:
       item = rclient.brpoplpush('mailarchive', mailarchivebackup)
       message = pickle.loads(item)
       logger.info("Getting Mails from {}".format('mailarchive'))
-      db.insert( {'from':message['msg']['from_email'], 'inboundJson':Binary(str(message).encode(), 128)} )
+      utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+      db.insert( {'from':message['msg']['from_email'], 'Expiry_date' : utc_timestamp, 'inboundJson':Binary(str(message).encode(), 128)} )
       logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))
       rclient.lrem(mailarchivebackup, 0, item)
       logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))
