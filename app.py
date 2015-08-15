@@ -486,7 +486,10 @@ settings = {"static_path": "frontend/Freeze/",
             "mailreobj": mailreobj,
             "coganlys_app_id": "679106064d7f4c5692bcf28",
             "cognalys_acc_token": "8707b5cec812cd940f5e80de3c725573547187af",
-            "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA", "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q", "/pluscode": "oKkvJSC7REP5uvojOBFcfg"},
+            "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA",
+                                  "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q",
+                                  "/pluscode": "oKkvJSC7REP5uvojOBFcfg",
+                                  "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw"},
 }
 
 application = tornado.web.Application([
