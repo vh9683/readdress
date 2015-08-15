@@ -377,6 +377,7 @@ class InviteFriendHandler(tornado.web.RequestHandler):
 
     user = yield self.getuser(from_email)
     #only registered users can use this facility
+    #need to check for isregistered user
     if user:
       self.sendInvite(friendemail, from_name)
       self.set_status(200)
