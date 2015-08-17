@@ -436,7 +436,11 @@ def emailHandler(ev, pickledEv):
   
   success = valid_email_addresses(msg, allrecipients, fromemail)
   if not success:
-    logger.info("Not a valid mail thread!! email address check failed, dropping...")
+    logger.info("Not a valid mail thread!! email address check failed, dropping and notifying sender...")
+    msg = {'template_name': 'readdressfailure', 'email': fromemail, 'global_merge_vars': [{'name': 'reason', 'content': "Mail could not be processed as none of the mail-id's are known to us."}]}
+    count = rclient.publish('mailer',pickle.dumps(msg))
+    gen_log.info('message ' + str(msg))
+    gen_log.info('message published to ' + str(count))
     del origmsg
     del msg
     return False
