@@ -8,6 +8,7 @@ import re
 import hashlib
 import hmac
 import base64
+import datetime
 from tornado.log import logging, gen_log
 from tornado.httpclient import AsyncHTTPClient
 from motor import MotorClient
@@ -324,8 +325,15 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     return user
 
   @coroutine
+  def getmapped(self, a):
+    user = yield self.getuser(a)
+    if not user:
+      return None
+    return user['mapped']
+
+  @coroutine
   def sendInvite (self, mailid, fromname):
-    logger.info("Sending invites from {} to {}".format(fromname, mailid))
+    gen_log.info("Sending invites from {} to {}".format(fromname, mailid))
     inbounddb = self.settings['inbounddb']
     rclient = self.settings['rclient']
     if fromname is None:
@@ -365,8 +373,9 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     from_email = ev['msg']['from_email']
     from_name = ev['msg']['from_name']
     friendemail = ev['msg']['subject']
-    if not mailreobj.fullmatch(friendemail):
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
+    friendemail = friendemail.strip()
+    if (friendemail is None) or (not mailreobj.fullmatch(friendemail)):
+      msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
       gen_log.info('message published to ' + str(count))
@@ -375,16 +384,12 @@ class InviteFriendHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
-    user = yield self.getuser(from_email)
+    from emailhandler import isregistereduser
     #only registered users can use this facility
-    if user:
-      self.sendInvite(friendemail, from_name)
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-    else:
-      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, you haven't signed up yet, please signup to use invite others to readdress.io"}]}
+    user = yield self.getmapped(from_email)
+    gen_log.info("From user mapped {} ".format(user))
+    if not user or not isregistereduser(user):
+      msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "You haven't signed up yet, please signup to use invite others to readdress.io"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
       gen_log.info('message published to ' + str(count))
@@ -393,6 +398,23 @@ class InviteFriendHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
+    frienduser = yield self.getmapped(friendemail)
+    if frienduser and isregistereduser(frienduser):
+      msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "User <" + friendemail + "> is already registered with us"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+        
+    self.sendInvite(friendemail, from_name)
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+ 
 class RecvHandler(tornado.web.RequestHandler):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
