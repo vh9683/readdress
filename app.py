@@ -9,11 +9,13 @@ import hashlib
 import hmac
 import base64
 import datetime
+import phonenumbers
 from tornado.log import logging, gen_log
 from tornado.httpclient import AsyncHTTPClient
 from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
+from validate_email import validate_email
 
 OUR_DOMAIN = "readdress.io"
 
@@ -142,6 +144,7 @@ class SignupHandler(tornado.web.RequestHandler):
 
   @coroutine
   def post(self):
+    allowedcountries = [91,61,1]
     if self.authenticatepost():
       gen_log.info('post authenticated successfully')
     else:
@@ -156,6 +159,7 @@ class SignupHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
+    rclient = self.settings['rclient']
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
     from_email = ev['msg']['from_email']
@@ -163,10 +167,28 @@ class SignupHandler(tornado.web.RequestHandler):
     if from_name is None or from_name is '':
       from_name = 'There'
     phonenum = ev['msg']['subject']
-    reobj = self.settings['reobj']
-    rclient = self.settings['rclient']
-    if not reobj.fullmatch(phonenum):
+    try:
+      phonedata = phonenumbers.parse(phonenum,None)
+    except phonenumbers.phonenumberutil.NumberParseException as e:
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    if phonedata.country_code not in allowedcountries:
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "This Service is not available in your Country as of now."}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
       gen_log.info('message published to ' + str(count))
@@ -368,13 +390,12 @@ class InviteFriendHandler(tornado.web.RequestHandler):
       return
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
-    mailreobj = self.settings['mailreobj']
     rclient = self.settings['rclient']
     from_email = ev['msg']['from_email']
     from_name = ev['msg']['from_name']
     friendemail = ev['msg']['subject']
     friendemail = friendemail.strip()
-    if (friendemail is None) or (not mailreobj.fullmatch(friendemail)):
+    if (friendemail is None) or not validate_email(friendemail):
       msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Incorrect emailid given, please check and retry with correct emailid to invite a friend "}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -497,15 +518,11 @@ inbounddb = MotorClient().inbounddb
 inbounddb.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 rclient = StrictRedis()
-reobj = re.compile("\+[0-9]{8,16}$")
-mailreobj = re.compile('([\w.-]+)@([\w.-]+)')
 
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
             "rclient": rclient,
-            "reobj": reobj,
-            "mailreobj": mailreobj,
             "coganlys_app_id": "679106064d7f4c5692bcf28",
             "cognalys_acc_token": "8707b5cec812cd940f5e80de3c725573547187af",
             "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA",

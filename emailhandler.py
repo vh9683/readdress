@@ -14,6 +14,7 @@ import datetime
 import email.utils 
 from email.utils import parseaddr
 from redis import StrictRedis
+from validate_email import validate_email
 import argparse
 
 
@@ -154,7 +155,7 @@ def getToAddresses(msg):
     mto = taddrcomp.match(to)
     if mto is not None:
       maddress = subcomp.sub('@', mto.group(1), count=1)
-      if maddress is not None:
+      if maddress is not None and validate_email(maddress):
         mapped = getmapped(a)
         if not mapped:
           invitercpts.append(maddress)
