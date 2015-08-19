@@ -180,7 +180,7 @@ def getCcAddresses(msg):
     mcc = taddrcomp.match(cc)
     if mcc is not None:
       maddress = subcomp.sub('@', mcc.group(1), count=1)
-      if maddress is not None:
+      if maddress is not None and validate_email(maddress):
         mapped = getmapped(maddress)
         if not mapped:
           invitercpts.append(maddress)
