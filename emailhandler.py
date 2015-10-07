@@ -14,8 +14,8 @@ import datetime
 import email.utils 
 from email.utils import parseaddr
 from redis import StrictRedis
-from validate_email import validate_email
 import argparse
+from validate_email import validate_email
 
 
 FILESIZE=1024*1024*1024 #1MB
@@ -152,10 +152,15 @@ def getToAddresses(msg):
   tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
   for toaddr in tolst:
     toname,to  = parseaddr(toaddr)
+    if toname is None:
+        toname = getuserid(to)
+    elif validate_email(toname):
+        toname = getuserid(to)
+    logger.info("NAME : {} ".format(toname))
     mto = taddrcomp.match(to)
     if mto is not None:
       maddress = subcomp.sub('@', mto.group(1), count=1)
-      if maddress is not None and validate_email(maddress):
+      if maddress is not None:
         mapped = getmapped(a)
         if not mapped:
           invitercpts.append(maddress)
@@ -163,7 +168,16 @@ def getToAddresses(msg):
         logger.info("changed address is : {} , {}".format(maddress,toname))
         to = [maddress, toname]
     else:
-        to = [to, toname]
+        mapped = getmapped(to)
+        if not mapped:
+            mapped, sendInvite = newmapaddr(to, toname, True)
+            to = [mapped, toname]
+        else:
+          to = [mapped, toname]
+
+        logger.info ("To addrs {}".format(to))
+    logger.info("Toname is : {}".format(toname))
+
     torecipients.append( to )
   return torecipients, invitercpts
 
@@ -180,7 +194,7 @@ def getCcAddresses(msg):
     mcc = taddrcomp.match(cc)
     if mcc is not None:
       maddress = subcomp.sub('@', mcc.group(1), count=1)
-      if maddress is not None and validate_email(maddress):
+      if maddress is not None:
         mapped = getmapped(maddress)
         if not mapped:
           invitercpts.append(maddress)
@@ -387,7 +401,7 @@ def emailHandler(ev, pickledEv):
 
   totalinvitercpts = toinvites + ccinvites
   for mailid in allrecipients:
-    logger.info("mail : {} ".format(mailid))
+    logger.info("for loop mail : {} ".format(mailid))
     user = getmapped(mailid[0])
     if user:
       if not isregistereduser(user):
