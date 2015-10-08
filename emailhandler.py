@@ -386,6 +386,7 @@ def sendmail( evKey, msg, to ):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
     ''' mark key to exipre after 15 secs'''
+    msg = None
     key = key.encode()
     #rclient.expire(key, 5*60)
     rclient.lpush('sendmail', key)
@@ -563,7 +564,7 @@ def emailHandler(ev, pickledEv):
     del jpickle
 
 
-    msg['X-MC-PreserveRecipients'] = 'true'
+    #msg['X-MC-PreserveRecipients'] = 'true'
 
     ''' msg will have Message-ID In-ReplyTo and References '''
     evKey =  uuid.uuid4().hex
