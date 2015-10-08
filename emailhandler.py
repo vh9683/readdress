@@ -401,6 +401,7 @@ def sendmail( evKey, msg, to ):
     'd' --> date
     'msgid' --> actual msgid
     'li' --> Boolean Tagged to LI ?
+    'acount' --> attachments count
 """
 
 def convertDictToJson(data):
@@ -434,6 +435,16 @@ def constructJsonForArchive (ev, msg, origmsg, actualTos, actualCcs):
     data['s'] = msg['Subject']
     data['d'] = origmsg['Date']
     data['msgid'] = origmsg['Message-ID']
+
+    acount = 0
+    keys = [ k for k in ev['msg'] if k in ev['msg'].keys() ]
+    if 'attachments' in keys:
+        acount += len(ev['msg']['attachments'])
+    if 'images' in keys:
+        acount += len(ev['msg']['images'])
+
+    data['acount'] = acount
+
     return data
 
 def emailHandler(ev, pickledEv):
@@ -537,8 +548,12 @@ def emailHandler(ev, pickledEv):
     data = constructJsonForArchive ( ev, msg, origmsg, actualTos, actualCcs )
     addModifiedTos(data, torecipients)
     addModifiedCcs(data, ccrecipients)
+
     if len(taggedList):
         data['li'] = True
+    else:
+        data['li'] = False
+
     jsondata = convertDictToJson(data)
     jpickle = pickle.dumps (jsondata)
 
