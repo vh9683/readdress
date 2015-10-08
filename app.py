@@ -219,6 +219,133 @@ class SignupHandler(tornado.web.RequestHandler):
     self.finish()
     return    
 
+
+class DeregisterHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
+  def write_error(self,status_code,**kwargs):
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+  
+  def getdomain(self,a):
+    return a.split('@')[-1]
+  
+  def isourdomain(self, a):
+    return self.getdomain(a) == OUR_DOMAIN
+
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def post(self):
+    allowedcountries = [91,61,1]
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    rclient = self.settings['rclient']
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+
+    from_email = ev['msg']['from_email']
+    from_name = ev['msg']['from_name']
+    if from_name is None or from_name is '':
+      from_name = 'There'
+    phonenum = ev['msg']['subject']
+    try:
+      phonedata = phonenumbers.parse(phonenum,None)
+    except phonenumbers.phonenumberutil.NumberParseException as e:
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    if phonedata.country_code not in allowedcountries:
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "This Service is not available in your Country as of now."}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    user = yield self.getuser(from_email)
+
+    phoneuser = yield self.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
+    if not user or not phoneuser:
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Phone number given is not registered with us, please check and retry "}]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    fromemail = ev['msg'][
+    #Mail-id will be deregistered in 24 hours , mail to be sent out
+    rclient = self.settings['rclient']
+    ''' Push the entire json to mailhandler thread through redis list '''
+    pickledEv = pickle.dumps(ev)
+    rclient.lpush('mailDeregisterhandler', pickledEv)
+
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return    
+
+
 class PluscodeHandler(tornado.web.RequestHandler):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
@@ -472,7 +599,9 @@ class RecvHandler(tornado.web.RequestHandler):
       self.write('Bad Request')
       self.finish()
       return
-    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io']
+
+    ignored =  rclient.settings ("ignored_in_recv")
+
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
     if not ev:
@@ -519,6 +648,8 @@ inbounddb.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 rclient = StrictRedis()
 
+ignoredmails = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' ]
+
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
@@ -529,6 +660,7 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q",
                                   "/pluscode": "oKkvJSC7REP5uvojOBFcfg",
                                   "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw"},
+            "ignored_in_recv" : ignoredmails,
 }
 
 application = tornado.web.Application([
@@ -538,6 +670,7 @@ application = tornado.web.Application([
     (r"/signup", SignupHandler),
     (r"/pluscode", PluscodeHandler),
     (r"/inviteafriend", InviteFriendHandler),
+    (r"/unsubscribe", DeregisterHandler),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 
