@@ -5,7 +5,6 @@
 5. removal of phone verification
 6. supervisor integration
 7. iptables update
-8. archive reduction
 9. separate page with signup instructions that can be shortened and given to other websites
 10. terms and conditions page / inclusion of same in the template
 11. https certificate and nginx config for same

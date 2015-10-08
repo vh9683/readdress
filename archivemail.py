@@ -1,13 +1,14 @@
 #! /usr/bin/python3.4
 
-from redis import StrictRedis
-from bson import Binary
-import pymongo
-import pickle
 import argparse
+import datetime
 import logging
 import logging.handlers
-import datetime
+import pickle
+import json
+
+import pymongo
+from redis import StrictRedis
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Archiver .')
@@ -41,15 +42,17 @@ if __name__ == '__main__':
         if (rclient.llen(mailarchivebackup)):
             item = rclient.brpop (mailarchivebackup)
             message = pickle.loads (item[1])
+            jsondata = json.loads(message)
             logger.info("Getting Mails from {}".format(mailarchivebackup))
             utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            db.insert( {'from':message['msg']['from_email'], 'Expiry_date' : utc_timestamp, 'inboundJson':Binary(str(message).encode(), 128)} )
+            db.insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
         else:
             item = rclient.brpoplpush('mailarchive', mailarchivebackup)
             message = pickle.loads(item)
             logger.info("Getting Mails from {}".format('mailarchive'))
             utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            db.insert( {'from':message['msg']['from_email'], 'Expiry_date' : utc_timestamp, 'inboundJson':Binary(str(message).encode(), 128)} )
+            jsondata = json.loads(message)
+            db.insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
             logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))
             rclient.lrem(mailarchivebackup, 0, item)
             logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))

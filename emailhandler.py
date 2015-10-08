@@ -1,19 +1,21 @@
 #! /usr/bin/python3.4
 
-import re
-import pymongo
-import pickle
-import logging
-import logging.handlers
+import argparse
 import copy
-import uuid
 import datetime
 import email.utils
+import json
+import logging
+import logging.handlers
+import pickle
+import re
+import sys
+import uuid
 from email.utils import parseaddr
-from redis import StrictRedis
-import argparse
-from validate_email import validate_email
 
+import pymongo
+from redis import StrictRedis
+from validate_email import validate_email
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -140,20 +142,23 @@ def sendInvite (invitesrcpts, fromname):
             rclient.publish('mailer',pickle.dumps(msg))
 
 def getToAddresses(msg):
-    torecipients = []
-    invitercpts = []
+    torecipients = list()
+    invitercpts = list()
     tostring = msg.get('To')
     if tostring is None:
-        return torecipients, invitercpts
+        return torecipients, invitercpts, list()
     tolst = tostring.split(',')
     tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
+    actualTo = list()
     for toaddr in tolst:
         toname,to  = parseaddr(toaddr)
+        actualTo.append(to)
         if toname is None:
             toname = getuserid(to)
         elif validate_email(toname):
             toname = getuserid(to)
         logger.info("NAME : {} ".format(toname))
+
         mto = taddrcomp.match(to)
         if mto is not None:
             maddress = subcomp.sub('@', mto.group(1), count=1)
@@ -167,6 +172,7 @@ def getToAddresses(msg):
         else:
             mapped = getmapped(to)
             if not mapped:
+                invitercpts.append(to)
                 mapped, sendInvite = newmapaddr(to, toname, True)
                 to = [mapped, toname]
             else:
@@ -176,18 +182,26 @@ def getToAddresses(msg):
         logger.info("Toname is : {}".format(toname))
 
         torecipients.append( to )
-    return torecipients, invitercpts
+    return torecipients, invitercpts, actualTo
 
 def getCcAddresses(msg):
-    ccrecipients = []
-    invitercpts = []
+    ccrecipients = list()
+    invitercpts = list()
     ccstring = msg.get('Cc')
     if ccstring is None:
-        return ccrecipients, invitercpts
+        return ccrecipients, invitercpts, list()
     cclst = ccstring.split(',')
     cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
+    actualCc = list()
     for ccaddr in cclst:
         ccname, cc = parseaddr( ccaddr )
+        actualCc.append(cc)
+
+        if ccname is None:
+            ccname = getuserid(cc)
+        elif validate_email(ccname):
+            ccname = getuserid(cc)
+
         mcc = taddrcomp.match(cc)
         if mcc is not None:
             maddress = subcomp.sub('@', mcc.group(1), count=1)
@@ -200,8 +214,19 @@ def getCcAddresses(msg):
                 cc = [maddress, ccname]
         else:
             cc = [cc, ccname]
-        ccrecipients.append( cc )
-    return ccrecipients
+            mapped = getmapped(cc)
+            if not mapped:
+                invitercpts.append(cc)
+                mapped, sendInvite = newmapaddr(cc, ccname, True)
+                cc = [mapped, ccname]
+            else:
+                cc = [mapped, ccname]
+
+            logger.info ("cc addrs {}".format(cc))
+        logger.info("ccname is : {}".format(ccname))
+
+        ccrecipients.append(cc)
+    return ccrecipients, invitercpts, actualCc
 
 
 def checkForBccmail (msg):
@@ -367,6 +392,50 @@ def sendmail( evKey, msg, to ):
     logger.info("sendmail key {}".format(key))
     return
 
+"""
+    'fa' --> actual from header
+    'fm' --> modified from header
+    'ta' --> actual to addresses
+    'ca' --> actual cc addresses
+    's' --> subject
+    'd' --> date
+    'msgid' --> actual msgid
+    'li' --> Boolean Tagged to LI ?
+"""
+
+def convertDictToJson(data):
+    json_data = json.dumps(data)
+    return json_data
+
+def addModifiedCcs (data, cc):
+    if len(cc) > 0:
+        ccs = [ id for id,name in cc ]
+        data['cm'] = ','.join(ccs)
+
+def addModifiedTos (data, to):
+    if len(to) > 0:
+        tos = [ id for id,name in to ]
+        data['tm'] = ','.join(tos)
+
+def constructJsonForArchive (ev, msg, origmsg, actualTos, actualCcs):
+    data = dict()
+    data['fa'] = origmsg['From']
+    data['fm'] = msg['From']
+    if actualTos:
+        data['ta'] = ','.join(actualTos)
+    else:
+        data['ta'] = "None"
+
+    if actualCcs:
+        data['ca'] = ','.join(actualCcs)
+    else:
+        data['ca'] = 'None'
+
+    data['s'] = msg['Subject']
+    data['d'] = origmsg['Date']
+    data['msgid'] = origmsg['Message-ID']
+    return data
+
 def emailHandler(ev, pickledEv):
     ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
@@ -391,12 +460,18 @@ def emailHandler(ev, pickledEv):
   '''
     allrecipients = []
     totalinvitercpts = []
-    torecipients, toinvites = getToAddresses(msg)
-    ccrecipients, ccinvites = getCcAddresses(msg)
+    torecipients, toinvites, actualTos = getToAddresses(msg)
+    ccrecipients, ccinvites, actualCcs = getCcAddresses(msg)
+
+    if len(actualTos) == 0:
+        actualTos = None
+    if len(actualCcs) == 0:
+        actualCcs = None
 
     allrecipients = torecipients + ccrecipients
 
     totalinvitercpts = toinvites + ccinvites
+
     for mailid in allrecipients:
         logger.info("for loop mail : {} ".format(mailid))
         user = getmapped(mailid[0])
@@ -423,22 +498,6 @@ def emailHandler(ev, pickledEv):
     if sendInvite2User:
         totalinvitercpts.append(fromemail)
 
-    taggedList = []
-    logger.info ("All recipients {}".format(allrecipients))
-    for mailid,name in allrecipients:
-        if isUserEmailTaggedForLI(mailid):
-            taggedList.append(mailid)
-
-    if isUserEmailTaggedForLI(fromemail):
-        taggedList.append(fromemail)
-
-    # check for Law Interception for all mails 
-    if len(taggedList):
-        item = []
-        item.append(','.join(taggedList))
-        item.append(ev)
-        rclient.lpush('liarchive', pickle.dumps(item))
-
     success = validthread(msg, allrecipients, fromemail)
     if not success:
         logger.info("Not a valid mail thread!!, dropping...")
@@ -457,8 +516,37 @@ def emailHandler(ev, pickledEv):
         del msg
         return False
 
+    taggedList = []
+    logger.info ("All recipients {}".format(allrecipients))
+    for mailid,name in allrecipients:
+        if isUserEmailTaggedForLI(mailid):
+            taggedList.append(mailid)
+
+    if isUserEmailTaggedForLI(fromemail):
+        taggedList.append(fromemail)
+
+    # check for Law Interception for all mails 
+    if len(taggedList):
+        item = []
+        item.append(','.join(taggedList))
+        item.append(ev)
+        rclient.lpush('liarchive', pickle.dumps(item))
+
     logger.info("sendmail to mailarchive")
-    rclient.lpush('mailarchive', pickledEv)
+
+    data = constructJsonForArchive ( ev, msg, origmsg, actualTos, actualCcs )
+    addModifiedTos(data, torecipients)
+    addModifiedCcs(data, ccrecipients)
+    if len(taggedList):
+        data['li'] = True
+    jsondata = convertDictToJson(data)
+    jpickle = pickle.dumps (jsondata)
+
+    rclient.lpush('mailarchive', jpickle)
+    logger.info ("Json : {}".format(jsondata))
+    del data
+    del jpickle
+
 
     msg['X-MC-PreserveRecipients'] = 'true'
 
@@ -505,9 +593,25 @@ def emailHandler(ev, pickledEv):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='EmailHandler .')
     parser.add_argument('-i','--instance', help='Instance Num of this script ', required=True)
+    parser.add_argument( '-d', '--debug', help='email dump file', required=False)
+
     args = parser.parse_args()
     argsdict = vars(args)
     instance = argsdict['instance']
+
+    debugfile = ''
+    if 'debug' in argsdict and argsdict['debug'] is not None:
+        debugfile = argsdict['debug']
+        print(debugfile)
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+        with open(debugfile, 'r') as f:
+            records = json.load(f)
+            ev = records[0]
+            f.close()
+            pickledEv = pickle.dumps(ev)
+            emailHandler(ev, pickledEv)
+        exit()
 
     formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
     hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
