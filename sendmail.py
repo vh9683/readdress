@@ -27,7 +27,8 @@ FILESIZE=1024*1024*1024 #1MB
 
 def sendmail(ev, msg, to, logger):
     ''' function to be optimised '''
-    server = smtplib.SMTP('smtp.mandrillapp.com', 587)
+    #server = smtplib.SMTP('smtp.mandrillapp.com', 587)
+    server = smtplib.SMTP('localhost', 587)
     try:
         #server.set_debuglevel(True)
 
@@ -35,10 +36,10 @@ def sendmail(ev, msg, to, logger):
         server.ehlo()
 
         # If we can encrypt this session, do it
-        if server.has_extn('STARTTLS'):
-            server.starttls()
-            server.ehlo() # re-identify ourselves over TLS connection
-            server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
+        #if server.has_extn('STARTTLS'):
+        #    server.starttls()
+        #    server.ehlo() # re-identify ourselves over TLS connection
+        #    server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         logger.info('RCPT : {}'.format(to))
 
