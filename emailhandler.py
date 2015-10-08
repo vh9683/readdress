@@ -521,17 +521,21 @@ if __name__ == '__main__':
     while True:
         backupmail = False
         if (rclient.llen(mailhandlerBackUp)):
-            ev = rclient.brpop (mailhandlerBackUp)
+            evt = rclient.brpop (mailhandlerBackUp)
             backupmail = True
+            ev = pickle.loads(evt[1])
             pickledEv = pickle.dumps(ev)
             logger.info("Getting events from {}".format(mailhandlerBackUp))
         else:
             pickledEv = rclient.brpoplpush('mailhandler', mailhandlerBackUp)
             ev = pickle.loads(pickledEv)
             logger.info("Getting events from {}".format('mailhandler'))
+
         #mail handler
         emailHandler(ev, pickledEv)
+
         if(not backupmail):
-            logger.info ('len of {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+            logger.info('len of {} is : {}'.format(
+                mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
             rclient.lrem(mailhandlerBackUp, 0, pickledEv)
             logger.info ('len of {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
