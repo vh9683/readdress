@@ -1,0 +1,14 @@
+1. DNS records for mandrill
+2. plus code library
+3. plus code validation on inout
+4. email address for phone to lat lng conversion
+5. removal of phone verification
+6. supervisor integration
+7. iptables update
+8. archive reduction
+9. separate page with signup instructions that can be shortened and given to other websites
+10. terms and conditions page / inclusion of same in the template
+11. https certificate and nginx config for same
+11. support for changing the mapping of phone to email
+12. support for unsubscribe
+
