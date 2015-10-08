@@ -333,7 +333,6 @@ class DeregisterHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
-    fromemail = ev['msg'][
     #Mail-id will be deregistered in 24 hours , mail to be sent out
     rclient = self.settings['rclient']
     ''' Push the entire json to mailhandler thread through redis list '''

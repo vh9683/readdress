@@ -216,9 +216,24 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    if user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) or not isregistereduser(user['mapped']):
+    if not isregistereduser(user['mapped']):
         #ignore silently
         return True
+
+    if user['actual'] != from_email or user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN):
+       text = """
+       Hi,
+        Phone number given is not registered with us, please check and retry "
+        Kindly do not reply to this mail. 
+
+      Regards,
+        Re@address Team
+      """
+
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
 
     text = """
        Hi,
