@@ -9,5 +9,4 @@
 10. terms and conditions page / inclusion of same in the template
 11. https certificate and nginx config for same
 11. support for changing the mapping of phone to email
-12. support for unsubscribe
 
