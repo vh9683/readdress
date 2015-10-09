@@ -264,7 +264,6 @@ class DeregisterHandler(tornado.web.RequestHandler):
 
   @coroutine
   def post(self):
-    allowedcountries = [91,61,1]
     if self.authenticatepost():
       gen_log.info('post authenticated successfully')
     else:
@@ -283,56 +282,7 @@ class DeregisterHandler(tornado.web.RequestHandler):
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
 
-    from_email = ev['msg']['from_email']
-    from_name = ev['msg']['from_name']
-    if from_name is None or from_name is '':
-      from_name = 'There'
-    phonenum = ev['msg']['subject']
-    try:
-      phonedata = phonenumbers.parse(phonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException as e:
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-
-    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-
-    if phonedata.country_code not in allowedcountries:
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "This Service is not available in your Country as of now."}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-
-    user = yield self.getuser(from_email)
-
-    phoneuser = yield self.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
-    if not user or not phoneuser:
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Phone number given is not registered with us, please check and retry "}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-
+    
     #Mail-id will be deregistered in 24 hours , mail to be sent out
     rclient = self.settings['rclient']
     ''' Push the entire json to mailhandler thread through redis list '''
@@ -599,7 +549,8 @@ class RecvHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
-    ignored =  rclient.settings ("ignored_in_recv")
+    rclient = self.settings['rclient']
+    ignored =  self.settings ["ignored_in_recv"]
 
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
@@ -620,7 +571,6 @@ class RecvHandler(tornado.web.RequestHandler):
           return
      
       ''' stage 1 do mail archive for all mails '''
-      rclient = self.settings['rclient']
 
       ''' Push the entire json to mailhandler thread through redis list'''
       pickledEv = pickle.dumps(ev)
@@ -658,8 +608,9 @@ settings = {"static_path": "frontend/Freeze/",
             "Mandrill_Auth_Key": {"/recv": "27pZHL5IBNxJ_RS7PKdsMA",
                                   "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q",
                                   "/pluscode": "oKkvJSC7REP5uvojOBFcfg",
-                                  "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw"},
-            "ignored_in_recv" : ignoredmails,
+                                  "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw",
+                                  "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg"},
+             "ignored_in_recv" : ignoredmails,
 }
 
 application = tornado.web.Application([

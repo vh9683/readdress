@@ -43,6 +43,29 @@ rclient = StrictRedis()
 
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
 
+html = """\
+<html>
+  <head></head>
+  <body>
+    <p>Hi!<br>
+        &emsp; {}<br>
+        Kindly do not reply to this mail. 
+        <br>Regards,<br>&emsp;Re@address Team<br>
+    </p>
+  </body>
+</html>
+"""
+
+bodypart = """\
+    Hi!
+      {} 
+    Kindly do not reply to this mail. 
+    Regards,
+      Re@address Team
+"""
+
+
+
 def getdomain(a):
     return a.split('@')[-1]
 
@@ -108,9 +131,13 @@ def prepareMail (ev, msg, body=None):
     ev['msg']['from_email'] = fromemail
 
     if body:
-        textpart = MIMEText(body, 'plain')
+        text = bodypart.format(body)
+        textpart = MIMEText(text, 'plain')
         msg.attach(textpart)
-
+        htmlformatted = html.format(body)
+        htmlpart = MIMEText(htmlformatted, 'html')
+        msg.attach(htmlpart)
+ 
     msgId = msg.get('Message-ID')
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
@@ -153,48 +180,32 @@ def emailDeregisterHandler(ev, pickledEv):
 
     from_email = ev['msg']['from_email']
     phonenum = ev['msg']['subject']
+
+
+    duser = db.deregisteredUsers.find_one ( { 'actual' : from_email } )
+    if duser:
+        text = "Phone number is already de-registered with us."
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
     try:
         phonedata = phonenumbers.parse(phonenum,None)
     except phonenumbers.phonenumberutil.NumberParseException as e:
         logger.info ("Exception raised {}".format(e))
-        text = """
-      Hi, 
-        Invalid phone number given, please check and retry with correct phone number.
-
-        Kindly do not reply to this mail. 
-
-        Regards,
-          Re@address Team
-      """
+        text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
     if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
-        text = """
-        Hi,
-            Invalid phone number given, please check and retry with correct phone number
-
-        Kindly do not reply to this mail. 
-
-        Regards
-          Re@address Team
-        """
-
+        text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
     if phonedata.country_code not in allowedcountries:
-        text = """
-      Hi,
-          This Service is not available in your Country as of now.
-      Kindly do not reply to this mail. 
-
-      Regards,
-        Re@address Team
-      """
-
+        text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
@@ -203,15 +214,7 @@ def emailDeregisterHandler(ev, pickledEv):
 
     phoneuser = getuser(phonenum[1:]+'@'+OUR_DOMAIN)
     if not user or not phoneuser:
-        text = """
-       Hi,
-        Phone number given is not registered with us, please check and retry "
-        Kindly do not reply to this mail. 
-
-      Regards,
-        Re@address Team
-      """
-
+        text = "Phone number given is not registered with us, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
@@ -221,29 +224,13 @@ def emailDeregisterHandler(ev, pickledEv):
         return True
 
     if user['actual'] != from_email or user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN):
-       text = """
-       Hi,
-        Phone number given is not registered with us, please check and retry "
-        Kindly do not reply to this mail. 
-
-      Regards,
-        Re@address Team
-      """
-
+        text = " You have not registered with this phone number, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
 
-    text = """
-       Hi,
-        Your alias will be unsibscribed in 24 hours.
-
-        Kindly do not reply to this mail. 
-
-      Regards,
-        Re@address Team
-      """
+    text = "Your alias will be unsibscribed in 24 hours. \n"
 
     evKey, recepient = prepareMail (ev, msg, text)
 
@@ -251,7 +238,7 @@ def emailDeregisterHandler(ev, pickledEv):
 
     utc_timestamp = datetime.datetime.utcnow()
 
-    db.user.update({"actual": user['actual']},
+    db.users.update({"actual": user['actual']},
                    {"$set": {'Expiry_date': utc_timestamp}})
 
     db.deregisteredUsers.insert( user )
