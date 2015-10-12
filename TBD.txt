@@ -10,3 +10,6 @@
 11. https certificate and nginx config for same
 11. support for changing the mapping of phone to email
 12. Send deregister cancel link for deregister/unsunsbcribe mailid
+13. Add bounce handling for deregistered user
+14.https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
+15. Move out of templates for invites, signup reply ... as shourly quota is 25 / hour for free account
