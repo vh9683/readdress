@@ -4,14 +4,13 @@ import json
 import sys
 import uuid
 import pickle
-import re
 import hashlib
 import hmac
 import base64
 import datetime
 import phonenumbers
+import pluscodes
 from tornado.log import logging, gen_log
-from tornado.httpclient import AsyncHTTPClient
 from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
@@ -39,21 +38,7 @@ class VerifyHandler(tornado.web.RequestHandler):
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
       return
-    http_client = AsyncHTTPClient()
-    response = yield http_client.fetch("https://cognalys.com/api/v1/otp/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&mobile="+session['phonenum'],raise_error=False)
-    if response.code != 200:
-      gen_log.warning('coganlys auth failed - response data ' + resdata)
-      self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      return      
-    resdata = json.loads(response.body.decode())
-    gen_log.info('coganlys auth response data ' + str(resdata))
-    if resdata['status'] != 'success':
-      self.render("sorry.html",reason="Invalid Session. This link is not valid")
-      return
-    session['keymatch'] = resdata['keymatch']
-    session['otpstart'] = resdata['otp_start']
-    rclient.setex(sessionid,600,pickle.dumps(session))
-    self.render("verify.html",url="/verify/"+sessionid,ostart=resdata['otp_start'])
+    self.render("verify.html",url="/verify/"+sessionid)
     return
   
   @coroutine
@@ -71,18 +56,9 @@ class VerifyHandler(tornado.web.RequestHandler):
     if not session:
       self.render("sorry.html",reason="Invalid Session. This link is not valid")
       return
-    otp = self.get_argument('otp','junk')
     pluscode = self.get_argument('pluscode','BADCODE')
-    http_client = AsyncHTTPClient()
-    response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
-    if response.code != 200:
-      gen_log.warning('coganlys verify failed - response data ' + resdata + ' request was ' + self.body['otp'])
-      self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
-      return
-    resdata = json.loads(response.body.decode())
-    gen_log.info('coganlys verify response data ' + str(resdata))
-    if resdata['status'] != 'success':
-      self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+    if not pluscodes.isFull(pluscode):
+      self.render("sorry.html",reason="Invalid Plus+Code. Please retry with correct code")
       return
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': session['actual']})
@@ -169,7 +145,7 @@ class SignupHandler(tornado.web.RequestHandler):
     phonenum = ev['msg']['subject']
     try:
       phonedata = phonenumbers.parse(phonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException as e:
+    except phonenumbers.phonenumberutil.NumberParseException:
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -360,6 +336,15 @@ class PluscodeHandler(tornado.web.RequestHandler):
     rclient = self.settings['rclient']
     user = yield self.getuser(from_email)
     if user:
+      if not pluscodes.isFull(pluscode):
+          msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, provide correct plus+code"}]}
+          count = rclient.publish('mailer',pickle.dumps(msg))
+          gen_log.info('message ' + str(msg))
+          gen_log.info('message published to ' + str(count))
+          self.set_status(200)
+          self.write({'status': 200})
+          self.finish()
+          return
       inbounddb = self.settings['inbounddb']
       yield inbounddb.users.update({'actual': from_email},{'$set': {'pluscode': pluscode}})
       msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "succeeded, do keep it updated"}]}
