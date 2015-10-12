@@ -1,15 +1,15 @@
-1. DNS records for mandrill
-2. plus code library
-3. plus code validation on inout
-4. email address for phone to lat lng conversion
-5. removal of phone verification
-6. supervisor integration
-7. iptables update
-9. separate page with signup instructions that can be shortened and given to other websites
-10. terms and conditions page / inclusion of same in the template
-11. https certificate and nginx config for same
-11. support for changing the mapping of phone to email
-12. Send deregister cancel link for deregister/unsunsbcribe mailid
-13. Add bounce handling for deregistered user
-14.https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
-15. Move out of templates for invites, signup reply ... as shourly quota is 25 / hour for free account
+Lanch critical
+1. email address for phone to lat lng / plus code conversion
+2. supervisor integration
+3. iptables update
+4. terms and conditions page / inclusion of same in the template
+5. support for changing the mapping of phone to email
+6. Add bounce handling for deregistered user
+7. https - update nginx, mandrill for same
+
+Non critical
+1. separate page with signup instructions that can be shortened and given to other websites
+2. Send deregister cancel link for deregister/unsunsbcribe mailid
+3. https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
+4. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, use genemail for this
+5. client only API to retrive plus.code from phone number for integration with registered websites - similar to google sigin
