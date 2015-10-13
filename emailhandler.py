@@ -575,6 +575,7 @@ def emailHandler(ev, pickledEv):
     #rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
     logger.info("All recipients {}".format(allrecipients))
     for mailid in allrecipients:
+        rmailid = ""
         if not isourdomain(mailid[0]):
             continue
         rto = mapaddrlist(allrecipients)
@@ -582,9 +583,11 @@ def emailHandler(ev, pickledEv):
         if not actual:
             continue
         if mailid[1]:
+            rmailid = actual
             recepient = email.utils.formataddr((mailid[1],actual))
             tremove = email.utils.formataddr((mailid[1],mailid[0]))
         else:
+            rmailid = actual
             recepient = actual
             tremove = mailid[0]
         if tremove in rto:
@@ -598,7 +601,10 @@ def emailHandler(ev, pickledEv):
         logger.info('To: ' + str(rto))
         msg['To'] = ','.join(rto)
         logger.info("Pushing msg to sendmail list {}\n".format(recepient))
-        sendmail(evKey, msg, recepient)
+
+        #below check is to prevent sending mail to self readdress ... 
+        if ev['msg']['from_email'] != getactual(mailid[0]):
+            sendmail(evKey, msg, recepient)
 
 
     sendInvite(totalinvitercpts, fromname)
