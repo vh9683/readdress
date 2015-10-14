@@ -1,7 +1,6 @@
 #! /usr/bin/python3.4
 
 import argparse
-import datetime
 import email.utils
 import json
 import logging
@@ -12,34 +11,24 @@ import uuid
 from email.mime.text import MIMEText
 from email.utils import parseaddr
 
-import pymongo
 from redis import StrictRedis
 
 import phonenumbers
+import dbops
+import validations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
-try:
-    conn=pymongo.MongoClient()
-    print ("Connected successfully!!!")
-except pymongo.errors.ConnectionFailure as e:
-    print ("Could not connect to MongoDB: %s" % e )
 
 logger = logging.getLogger('mailmodifyhandle')
 
 OUR_DOMAIN = 'readdress.io'
 
-db = conn.inbounddb
-#Set expiry after 24 hours
-db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
-
-#TTL for invites users .. expiry after 5 mins
-db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
-
-#expire after 30days from now
-db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
-
 rclient = StrictRedis()
+
+db = dbops.MongoORM()
+
+valids = validations.Validations()
 
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
 
@@ -65,58 +54,6 @@ bodypart = """\
 """
 
 
-
-def getdomain(a):
-    return a.split('@')[-1]
-
-def getuserid(a):
-    return a.split('@')[0]
-
-def isourdomain( a):
-    return getdomain(a) == OUR_DOMAIN
-
-def isknowndomain(a):
-    if isourdomain(a):
-        return True
-    known = db.domains.find_one({'domain': getdomain(a)})
-    if not known:
-        return False
-    return True
-
-
-def valid_uuid4(a):
-    userid = getuserid(a)
-    try:
-        val = uuid.UUID(userid, version=4)
-    except ValueError:
-        # If it's a value error, then the string 
-        # is not a valid hex code for a UUID.
-        return False
-
-    # If the uuid_string is a valid hex code, 
-    # but an invalid uuid4,
-    # the UUID.__init__ will convert it to a 
-    # valid uuid4. This is bad for validation purposes.
-    return val.hex == userid
-
-def isregistereduser(a):
-    """ check whether the user address is a registered one or generated one """
-    return not valid_uuid4(a)
-
-def getuser(a):
-    if isourdomain(a):
-        user = db.users.find_one({'mapped': a})
-    else:
-        user = db.users.find_one({'actual': a})
-    return user
-
-def getactual(a):
-    user = getuser(a)
-    if not user:
-        return None
-    return user['actual']
-
-
 def prepareMail (ev, msg, body=None):
     frommail = msg['From']
     del msg['From']
@@ -137,7 +74,7 @@ def prepareMail (ev, msg, body=None):
         htmlformatted = html.format(body)
         htmlpart = MIMEText(htmlformatted, 'html')
         msg.attach(htmlpart)
- 
+
     msgId = msg.get('Message-ID')
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
@@ -181,11 +118,13 @@ def emailModifyHandler(ev, pickledEv):
     from_email = ev['msg']['from_email']
     csvphonenum = ev['msg']['subject']
 
-    oldphonenum = csvphonenum.(',')[0]
-    
-    newphonenum = csvphonenum.(',')[1]
+    oldphonenum = csvphonenum.split(',')[0]
 
-    duser = db.deregisteredUsers.find_one ( { 'actual' : from_email } )
+    newphonenum = csvphonenum.split(',')[1]
+
+    user = db.getuser(from_email)
+
+    duser = db.findDeregistedUser( from_email  )
     if duser:
         text = "Phone number is already de-registered with us."
         evKey, recepient = prepareMail (ev, msg, text)
@@ -193,7 +132,7 @@ def emailModifyHandler(ev, pickledEv):
         return True
 
     try:
-        phonedata = phonenumbers.parse(phonenum,None)
+        oldphonedata = phonenumbers.parse(oldphonenum,None)
     except phonenumbers.phonenumberutil.NumberParseException as e:
         logger.info ("Exception raised {}".format(e))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
@@ -201,50 +140,77 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
+    if not phonenumbers.is_possible_number(oldphonedata) or not phonenumbers.is_valid_number(oldphonedata):
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if phonedata.country_code not in allowedcountries:
+    if oldphonedata.country_code not in allowedcountries:
         text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    user = getuser(from_email)
 
-    phoneuser = getuser(phonenum[1:]+'@'+OUR_DOMAIN)
-    if not user or not phoneuser:
-        text = "Phone number given is not registered with us, please check and retry. \n "
+    oldphoneuser = db.getuser(oldphonenum[1:]+'@'+OUR_DOMAIN)
+    if not user or not oldphoneuser:
+        text = "Old Phone number given is not registered with us, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if not isregistereduser(user['mapped']):
-        #ignore silently
-        return True
-
-    if user['actual'] != from_email or user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN):
-        text = " You have not registered with this phone number, please check and retry. \n "
+    if not valids.isregistereduser(user['mapped']):
+        text = "Old Phone number given is not valid, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
+    try:
+        newphonedata = phonenumbers.parse(newphonenum,None)
+    except phonenumbers.phonenumberutil.NumberParseException as e:
+        logger.info ("Exception raised {}".format(e))
+        text = "Invalid phone number given, please check and retry with correct phone number. \n"
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
 
-    text = "Your alias will be unsibscribed in 24 hours. \n"
+    if not phonenumbers.is_possible_number(newphonedata) or not phonenumbers.is_valid_number(newphonedata):
+        text = "Invalid phone number given, please check and retry with correct phone number. \n"
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+    if newphonedata.country_code not in allowedcountries:
+        text = " This Service is not available in your Country as of now. \n "
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+    newphoneuser = db.getuser(newphonenum[1:]+'@'+OUR_DOMAIN)
+    if newphoneuser and valids.isregistereduser(newphoneuser['mapped']):
+        text = "New Phone number given is already registered with us, please check and retry. \n "
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+    if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+OUR_DOMAIN):
+        text = " Your email id and old phone number does not match, please check and retry. \n "
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+    db.removeUser(user)
+
+    db.insertUser (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN), ev['msg']['from_name'])
+
+    db.updatePluscode(user['actual'], user['pluscode'])
+
+    text = "Your alias is changed to {}\n".format(newphonenum[1:]+'@'+OUR_DOMAIN)
 
     evKey, recepient = prepareMail (ev, msg, text)
 
     sendmail(evKey, msg, recepient)
-
-    utc_timestamp = datetime.datetime.utcnow()
-
-    db.users.update({"actual": user['actual']},
-                   {"$set": {'Expiry_date': utc_timestamp}})
-
-    db.deregisteredUsers.insert( user )
 
     del msg
     return True

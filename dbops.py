@@ -121,4 +121,11 @@ class MongoORM:
         def getLidb():
             return self.lidb
 
+        def removeUser(self, user):
+            self.getdb().users.remove( user )
+            return
+
+        def updatePluscode(seld, actual, pluscode):
+            self.getdb().users.update ( {'actual' : user['actual']}, {'$set' : {'pluscode': pluscode}})
+            
 
