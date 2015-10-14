@@ -6,6 +6,7 @@ Lanch critical
 5. support for changing the mapping of phone to email
 6. Add bounce handling for deregistered user
 7. https - update nginx, mandrill for same
+8. Avoiding double phone registration
 
 Non critical
 1. separate page with signup instructions that can be shortened and given to other websites

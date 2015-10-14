@@ -1,6 +1,7 @@
 #! /usr/bin/python3.4
 
 import argparse
+import datetime
 import email.utils
 import json
 import logging
@@ -11,25 +12,32 @@ import uuid
 from email.mime.text import MIMEText
 from email.utils import parseaddr
 
+import pymongo
 from redis import StrictRedis
-import dbops
-import validations 
 
 import phonenumbers
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
+try:
+    conn=pymongo.MongoClient()
+    print ("Connected successfully!!!")
+except pymongo.errors.ConnectionFailure as e:
+    print ("Could not connect to MongoDB: %s" % e )
 
-logger = logging.getLogger('maildereghandle')
-
-#class for all db operations using mongodb
-db = dbops.MongoORM()
-
-#instanttiate class for common validations
-valids = validations.Validations()
-
+logger = logging.getLogger('mailmodifyhandle')
 
 OUR_DOMAIN = 'readdress.io'
+
+db = conn.inbounddb
+#Set expiry after 24 hours
+db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+
+#TTL for invites users .. expiry after 5 mins
+db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+
+#expire after 30days from now
+db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 rclient = StrictRedis()
 
@@ -55,6 +63,59 @@ bodypart = """\
     Regards,
       Re@address Team
 """
+
+
+
+def getdomain(a):
+    return a.split('@')[-1]
+
+def getuserid(a):
+    return a.split('@')[0]
+
+def isourdomain( a):
+    return getdomain(a) == OUR_DOMAIN
+
+def isknowndomain(a):
+    if isourdomain(a):
+        return True
+    known = db.domains.find_one({'domain': getdomain(a)})
+    if not known:
+        return False
+    return True
+
+
+def valid_uuid4(a):
+    userid = getuserid(a)
+    try:
+        val = uuid.UUID(userid, version=4)
+    except ValueError:
+        # If it's a value error, then the string 
+        # is not a valid hex code for a UUID.
+        return False
+
+    # If the uuid_string is a valid hex code, 
+    # but an invalid uuid4,
+    # the UUID.__init__ will convert it to a 
+    # valid uuid4. This is bad for validation purposes.
+    return val.hex == userid
+
+def isregistereduser(a):
+    """ check whether the user address is a registered one or generated one """
+    return not valid_uuid4(a)
+
+def getuser(a):
+    if isourdomain(a):
+        user = db.users.find_one({'mapped': a})
+    else:
+        user = db.users.find_one({'actual': a})
+    return user
+
+def getactual(a):
+    user = getuser(a)
+    if not user:
+        return None
+    return user['actual']
+
 
 def prepareMail (ev, msg, body=None):
     frommail = msg['From']
@@ -103,7 +164,7 @@ def sendmail( evKey, msg, to ):
 
 allowedcountries = [91,61,1]
 
-def emailDeregisterHandler(ev, pickledEv):
+def emailModifyHandler(ev, pickledEv):
     ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
     '''
@@ -118,10 +179,13 @@ def emailDeregisterHandler(ev, pickledEv):
     msg['Subject'] = subject
 
     from_email = ev['msg']['from_email']
-    phonenum = ev['msg']['subject']
+    csvphonenum = ev['msg']['subject']
 
+    oldphonenum = csvphonenum.(',')[0]
+    
+    newphonenum = csvphonenum.(',')[1]
 
-    duser = db.findDeregistedUser( from_email )
+    duser = db.deregisteredUsers.find_one ( { 'actual' : from_email } )
     if duser:
         text = "Phone number is already de-registered with us."
         evKey, recepient = prepareMail (ev, msg, text)
@@ -149,16 +213,16 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    user = db.getuser(from_email)
+    user = getuser(from_email)
 
-    phoneuser = db.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
+    phoneuser = getuser(phonenum[1:]+'@'+OUR_DOMAIN)
     if not user or not phoneuser:
         text = "Phone number given is not registered with us, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if not db.isregistereduser(user['mapped']):
+    if not isregistereduser(user['mapped']):
         #ignore silently
         return True
 
@@ -175,7 +239,12 @@ def emailDeregisterHandler(ev, pickledEv):
 
     sendmail(evKey, msg, recepient)
 
-    db.updateExpAndInsertDeregUser( user )
+    utc_timestamp = datetime.datetime.utcnow()
+
+    db.users.update({"actual": user['actual']},
+                   {"$set": {'Expiry_date': utc_timestamp}})
+
+    db.deregisteredUsers.insert( user )
 
     del msg
     return True
@@ -200,36 +269,36 @@ if __name__ == '__main__':
             ev = records[0]
             f.close()
             pickledEv = pickle.dumps(ev)
-            emailDeregisterHandler(ev, pickledEv)
+            emailModifyHandler(ev, pickledEv)
         exit()
 
     formatter = logging.Formatter('MAIL-DEREG-HANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/maildereghandle'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailmodifyhandle'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)
 
-    mailDeregisterhandlerBackUp = 'mailDeregisterhandler_' + instance
-    logger.info("mailDeregisterhandlerBackUp ListName : {} ".format(mailDeregisterhandlerBackUp))
+    mailModifyhandlerBackUp = 'mailModifyhandler_' + instance
+    logger.info("mailModifyhandlerBackUp ListName : {} ".format(mailModifyhandlerBackUp))
 
     while True:
         backupmail = False
-        if (rclient.llen(mailDeregisterhandlerBackUp)):
-            evt = rclient.brpop (mailDeregisterhandlerBackUp)
+        if (rclient.llen(mailModifyhandlerBackUp)):
+            evt = rclient.brpop (mailModifyhandlerBackUp)
             backupmail = True
             ev = pickle.loads(evt[1])
             pickledEv = pickle.dumps(ev)
-            logger.info("Getting events from {}".format(mailDeregisterhandlerBackUp))
+            logger.info("Getting events from {}".format(mailModifyhandlerBackUp))
         else:
-            pickledEv = rclient.brpoplpush('mailDeregisterhandler', mailDeregisterhandlerBackUp)
+            pickledEv = rclient.brpoplpush('mailModifyhandler', mailModifyhandlerBackUp)
             ev = pickle.loads(pickledEv)
-            logger.info("Getting events from {}".format('mailDeregisterhandler'))
+            logger.info("Getting events from {}".format('mailModifyhandler'))
 
         #mail handler
-        emailDeregisterHandler(ev, pickledEv)
+        emailModifyHandler(ev, pickledEv)
 
         if(not backupmail):
             logger.info('len of {} is : {}'.format(
-                mailDeregisterhandlerBackUp, rclient.llen(mailDeregisterhandlerBackUp)))
-            rclient.lrem(mailDeregisterhandlerBackUp, 0, pickledEv)
-            logger.info ('len of {} is : {}'.format(mailDeregisterhandlerBackUp, rclient.llen(mailDeregisterhandlerBackUp)))
+                mailModifyhandlerBackUp, rclient.llen(mailModifyhandlerBackUp)))
+            rclient.lrem(mailModifyhandlerBackUp, 0, pickledEv)
+            logger.info ('len of {} is : {}'.format(mailModifyhandlerBackUp, rclient.llen(mailModifyhandlerBackUp)))

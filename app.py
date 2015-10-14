@@ -172,9 +172,10 @@ class SignupHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
+
     user = yield self.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
     if user:
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Phone number given already associated with an email id, please check and retry with different phone number"}]}
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Phone number given is already associated with an email id, please check and retry with different phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
       gen_log.info('message published to ' + str(count))
@@ -182,6 +183,30 @@ class SignupHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
+
+    actual_user = yield self.getuser(from_email)
+    if actual_user and actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) :
+      content = "This email-id {0} is already associated with another phone number, you can associate one phone number with an email id for free account.".format(from_email)
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    elif actual_user and actual_user['mapped'] == (phonenum[1:]+'@'+OUR_DOMAIN) :
+      content = "This email-id {0} is already associated with an phone number".format(from_email)
+      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
+      count = rclient.publish('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+
     session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum, 'name': from_name}
     sessionid = uuid.uuid4().hex
     rclient = self.settings['rclient']
@@ -269,6 +294,81 @@ class DeregisterHandler(tornado.web.RequestHandler):
     self.write({'status': 200})
     self.finish()
     return    
+
+
+class ModifyHandler(tornado.web.RequestHandler):
+  def authenticatepost(self):
+    gen_log.info('authenticatepost for ' + self.request.path)
+    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
+    if 'X-Mandrill-Signature' in self.request.headers:
+      rcvdsignature = self.request.headers['X-Mandrill-Signature']
+    else:
+      gen_log.info('Invalid post from ' + self.request.remote_ip)
+      return False
+    data = self.request.full_url()
+    argkeys = sorted(self.request.arguments.keys())
+    for arg in argkeys:
+      data += arg
+      for args in self.request.arguments[arg]:
+        data += args.decode()
+    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+    asignature = base64.b64encode(hashed.digest()).decode()
+    gen_log.info('rcvdsignature ' + str(rcvdsignature))
+    gen_log.info('asignature ' + str(asignature))
+    return asignature == rcvdsignature
+
+  def write_error(self,status_code,**kwargs):
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return
+  
+  def getdomain(self,a):
+    return a.split('@')[-1]
+  
+  def isourdomain(self, a):
+    return self.getdomain(a) == OUR_DOMAIN
+
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def post(self):
+    if self.authenticatepost():
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    rclient = self.settings['rclient']
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+
+    #modify phone number handler
+    rclient = self.settings['rclient']
+    ''' Push the entire json to mailhandler thread through redis list '''
+    pickledEv = pickle.dumps(ev)
+    rclient.lpush('mailModifyhandler', pickledEv)
+
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return    
+
 
 
 class PluscodeHandler(tornado.web.RequestHandler):
@@ -606,6 +706,7 @@ application = tornado.web.Application([
     (r"/pluscode", PluscodeHandler),
     (r"/inviteafriend", InviteFriendHandler),
     (r"/unsubscribe", DeregisterHandler),
+    (r"/changephone", ModifyHandler),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 

@@ -2,7 +2,6 @@
 
 import argparse
 import copy
-import datetime
 import email.utils
 import json
 import logging
@@ -13,31 +12,22 @@ import sys
 import uuid
 from email.utils import parseaddr
 
-import pymongo
+import dbops
+import validations 
+
 from redis import StrictRedis
 from validate_email import validate_email
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
-try:
-    conn=pymongo.MongoClient()
-    print ("Connected successfully!!!")
-except pymongo.errors.ConnectionFailure as e:
-    print ("Could not connect to MongoDB: %s" % e )
-
 logger = logging.getLogger('mailHandler')
-
 OUR_DOMAIN = 'readdress.io'
 
-db = conn.inbounddb
-#Set expiry after 24 hours
-db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
+#class for all db operations using mongodb
+db = dbops.MongoORM()
 
-#TTL for invites users .. expiry after 5 mins
-db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
-
-#expire after 30days from now
-db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
+#instanttiate class for common validations
+valids = validations.Validations()
 
 #below regex objs are for handling new thread mails
 taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@'+OUR_DOMAIN)
@@ -46,65 +36,15 @@ subcomp = re.compile('__')
 
 rclient = StrictRedis()
 
-
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
-
-def getdomain(a):
-    return a.split('@')[-1]
-
-def getuserid(a):
-    return a.split('@')[0]
-
-def isourdomain( a):
-    return getdomain(a) == OUR_DOMAIN
-
-def isknowndomain(a):
-    if isourdomain(a):
-        return True
-    known = db.domains.find_one({'domain': getdomain(a)})
-    if not known:
-        return False
-    return True
-
-def getuser(a):
-    if isourdomain(a):
-        user = db.users.find_one({'mapped': a})
-    else:
-        user = db.users.find_one({'actual': a})
-    return user
-
-def insertUser(a, m, n=None, setExpiry = False):
-    user = getuser(a)
-    if user:
-        return True
-
-    if setExpiry:
-        utc_timestamp = datetime.datetime.utcnow()
-        if n:
-            db.users.insert( {'mapped': m, 'actual': a, 'name' : n, 'Expiry_date' : utc_timestamp} )
-        else:
-            db.users.insert( { 'mapped': m, 'actual': a, 'Expiry_date': utc_timestamp } )
-    else:
-        if n:
-            db.users.insert( {'mapped': m, 'actual': a, 'name' : n} )
-        else:
-            db.users.insert( { 'mapped': m, 'actual': a } )
-
-    return True
-
-def getmapped(a):
-    user = getuser(a)
-    if not user:
-        return None
-    return user['mapped']
 
 def newmapaddr(a, n=None, setExpiry=None):
     sendInvite2User = False
-    mapped = getmapped(a)
+    mapped = db.getmapped(a)
     if not mapped:
         ''' better to add ttl for this address '''
         mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
-        insertUser( a, mapped, n , setExpiry)
+        db.insertUser( a, mapped, n , setExpiry)
         logger.info('insterted new ext user ' + a + ' -> ' + mapped)
         sendInvite2User = True
     return mapped, sendInvite2User
@@ -117,7 +57,7 @@ def populate_from_addresses(msg):
         return False, sendInvite2User
     del msg['From']
 
-    if not isregistereduser(mapped):
+    if not valids.isregistereduser(mapped):
         sendInvite2User = True
 
     if fromname:
@@ -134,10 +74,9 @@ def sendInvite (invitesrcpts, fromname):
     if fromname is None:
         fromname = ""
     for mailid in invitesrcpts:
-        user = db.invitesRecipients.find_one( { 'email' : mailid } )
+        user = db.findInviteUsers ( mailid )
         if not user:
-            utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            user = db.invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
+            user =  db.insertIntoInviteRecipients (mailid)
             msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
             rclient.publish('mailer',pickle.dumps(msg))
 
@@ -154,23 +93,23 @@ def getToAddresses(msg):
         toname,to  = parseaddr(toaddr)
         actualTo.append(to)
         if toname is None:
-            toname = getuserid(to)
+            toname = valids.getuserid(to)
         elif validate_email(toname):
-            toname = getuserid(to)
+            toname = valids.getuserid(to)
         logger.info("NAME : {} ".format(toname))
 
         mto = taddrcomp.match(to)
         if mto is not None:
             maddress = subcomp.sub('@', mto.group(1), count=1)
             if maddress is not None:
-                mapped = getmapped(maddress)
+                mapped = db.getmapped(maddress)
                 if not mapped:
                     invitercpts.append(maddress)
                 newmapaddr(maddress, toname, True)
                 logger.info("changed address is : {} , {}".format(maddress,toname))
                 to = [maddress, toname]
         else:
-            mapped = getmapped(to)
+            mapped = db.getmapped(to)
             if not mapped:
                 invitercpts.append(to)
                 mapped, sendInvite = newmapaddr(to, toname, True)
@@ -198,15 +137,15 @@ def getCcAddresses(msg):
         actualCc.append(cc)
 
         if ccname is None:
-            ccname = getuserid(cc)
+            ccname = valids.getuserid(cc)
         elif validate_email(ccname):
-            ccname = getuserid(cc)
+            ccname = valids.getuserid(cc)
 
         mcc = taddrcomp.match(cc)
         if mcc is not None:
             maddress = subcomp.sub('@', mcc.group(1), count=1)
             if maddress is not None:
-                mapped = getmapped(maddress)
+                mapped = db.getmapped(maddress)
                 if not mapped:
                     invitercpts.append(maddress)
                 newmapaddr(maddress, ccname, True)
@@ -214,7 +153,7 @@ def getCcAddresses(msg):
                 cc = [maddress, ccname]
         else:
             cc = [cc, ccname]
-            mapped = getmapped(cc)
+            mapped = db.getmapped(cc)
             if not mapped:
                 invitercpts.append(cc)
                 mapped, sendInvite = newmapaddr(cc, ccname, True)
@@ -247,31 +186,13 @@ def checkForBccmail (msg):
 
     return bccinmail
 
-def valid_uuid4(a):
-    userid = getuserid(a)
-    try:
-        val = uuid.UUID(userid, version=4)
-    except ValueError:
-        # If it's a value error, then the string 
-        # is not a valid hex code for a UUID.
-        return False
-
-    # If the uuid_string is a valid hex code, 
-    # but an invalid uuid4,
-    # the UUID.__init__ will convert it to a 
-    # valid uuid4. This is bad for validation purposes.
-    return val.hex == userid
-
-def isregistereduser(a):
-    """ check whether the user address is a registered one or generated one """
-    return not valid_uuid4(a)
 
 def valid_email_addresses (msg,allrecipients,from_email):
     for id,name in allrecipients:
-        success = isregistereduser(id)
+        success = valids.isregistereduser(id)
         if success:
             return True
-    success =  getuser(from_email)
+    success =  db.getuser(from_email)
     if success:
         return True
     return False
@@ -336,19 +257,11 @@ def validthread(msg,allrecipients,from_email):
     if references is not None:
         references = references.strip()
 
-    timestamp = datetime.datetime.now()
-    utc_timestamp = datetime.datetime.utcnow()
-
-    mailthread = db.threadMapper.find_one( { 'threadId' : msgId } )
+    mailthread = db.findThread ( msgId )
     if mailthread is None:
         ''' no mail with msgId found in DB .. insert new entry in the db'''
-        if references is None:
-            db.threadMapper.insert( { 'threadId' : msgId , "date": timestamp, "Expiry_date" : utc_timestamp} )
-            logger.info("Inserting new doc {}".format(msgId))
-        else:
-            db.threadMapper.insert( { 'threadId' : msgId, 'references' : references,
-                                    "date": timestamp, "Expiry_date" : utc_timestamp} )
-            logger.info("Inserting new doc {}".format(msgId))
+        db.insertThread(msgId)
+        logger.info("Inserting new doc {}".format(msgId))
         return True
     else:
         logger.info("Possible Duplicate mail {}".format(msgId))
@@ -356,23 +269,16 @@ def validthread(msg,allrecipients,from_email):
 
 def isUserEmailTaggedForLI(a):
     """ Check if the user address is tagged for LI """
-    user = getuser(a)
+    user = db.getuser(a)
     if user and 'tagged' in user:
         return user['tagged']
     return None
-
-def getactual(a):
-    user = getuser(a)
-    if not user:
-        return None
-    return user['actual']
-
 
 def mapaddrlist(li):
     rli = []
     logger.info('mapaddrlist li ' + str(li))
     for x in li:
-        mapped = getmapped(x[0])
+        mapped = db.getmapped(x[0])
         if not mapped:
             continue
         if x[1]:
@@ -486,9 +392,9 @@ def emailHandler(ev, pickledEv):
 
     for mailid in allrecipients:
         logger.info("for loop mail : {} ".format(mailid))
-        user = getmapped(mailid[0])
+        user = db.getmapped(mailid[0])
         if user:
-            if not isregistereduser(user):
+            if not valids.isregistereduser(user):
                 totalinvitercpts.append(mailid[0])
         else:
             totalinvitercpts.append(mailid[0])
@@ -575,19 +481,16 @@ def emailHandler(ev, pickledEv):
     #rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
     logger.info("All recipients {}".format(allrecipients))
     for mailid in allrecipients:
-        rmailid = ""
-        if not isourdomain(mailid[0]):
+        if not valids.isourdomain(mailid[0]):
             continue
         rto = mapaddrlist(allrecipients)
-        actual = getactual(mailid[0])
+        actual = db.getactual(mailid[0])
         if not actual:
             continue
         if mailid[1]:
-            rmailid = actual
             recepient = email.utils.formataddr((mailid[1],actual))
             tremove = email.utils.formataddr((mailid[1],mailid[0]))
         else:
-            rmailid = actual
             recepient = actual
             tremove = mailid[0]
         if tremove in rto:
@@ -603,9 +506,8 @@ def emailHandler(ev, pickledEv):
         logger.info("Pushing msg to sendmail list {}\n".format(recepient))
 
         #below check is to prevent sending mail to self readdress ... 
-        if ev['msg']['from_email'] != getactual(mailid[0]):
+        if ev['msg']['from_email'] != db.getactual(mailid[0]):
             sendmail(evKey, msg, recepient)
-
 
     sendInvite(totalinvitercpts, fromname)
     del origmsg
