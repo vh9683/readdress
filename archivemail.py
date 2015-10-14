@@ -33,16 +33,14 @@ if __name__ == '__main__':
         if (rclient.llen(mailarchivebackup)):
             item = rclient.brpop (mailarchivebackup)
             message = pickle.loads (item[1])
-            jsondata = json.loads(message)
             logger.info("Getting Mails from {}".format(mailarchivebackup))
             utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            db.archivemail(jsondata, message)
+            db.dumpmail(message)
         else:
             item = rclient.brpoplpush('mailarchive', mailarchivebackup)
             message = pickle.loads(item)
             logger.info("Getting Mails from {}".format('mailarchive'))
-            jsondata = json.loads(message)
-            db.archivemail(jsondata, message)
+            db.dumpmail(message)
             logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))
             rclient.lrem(mailarchivebackup, 0, item)
             logger.info ('len of {} is : {}'.format(mailarchivebackup, rclient.llen(mailarchivebackup)))

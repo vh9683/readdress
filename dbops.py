@@ -3,6 +3,7 @@
 import datetime
 import pymongo
 import validations
+import json
 
 class MongoORM:
     def __init__(self):
@@ -125,15 +126,16 @@ class MongoORM:
             self.getdb().users.remove( user )
             return
 
-        def updatePluscode(seld, actual, pluscode):
+        def updatePluscode(self, actual, pluscode):
             self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
             
-        def archivemail(self, jsondata, message):
+        def dumpmail(self, message):
+            jsondata = json.loads(message)
             utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
             self.getBackUpdb().insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
             return
 
-        def liarchive(self, itemlist, data):
+        def lidump(self, itemlist, data):
             self.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':data })
             return
 
