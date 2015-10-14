@@ -103,6 +103,7 @@ class MongoORM:
             else:
                 self.getdb().threadMapper.insert( { 'threadId' : msgId, 'references' : references,
                                         "date": timestamp, "Expiry_date" : utc_timestamp} )
+            return
 
         def findDeregistedUser(self, from_email):
             duser = self.getdb().deregisteredUsers.find_one ( { 'actual' : from_email } )
