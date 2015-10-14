@@ -126,6 +126,15 @@ class MongoORM:
             return
 
         def updatePluscode(seld, actual, pluscode):
-            self.getdb().users.update ( {'actual' : user['actual']}, {'$set' : {'pluscode': pluscode}})
+            self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
             
+        def archivemail(self, jsondata, message):
+            utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+            self.getBackUpdb().insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
+            return
+
+        def liarchive(self, itemlist, data):
+            self.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':data })
+            return
+
 

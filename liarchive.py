@@ -35,12 +35,12 @@ if __name__ == '__main__':
             logger.info("Getting Mails from {}".format(liarchivebackup))
             itemlist = pickle.loads(item[1])
             if (len(itemlist) == 2):
-                db.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':Binary(str(itemlist[1]).encode(), 128)} )
+                db.liarchive(itemlist, Binary(str(itemlist[1]).encode(), 128))
         else:
             item = rclient.brpoplpush('liarchive', liarchivebackup)
             itemlist = pickle.loads(item)
             if (len(itemlist) == 2):
-                db.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':Binary(str(itemlist[1]).encode(), 128)} )
+                db.liarchive(itemlist, Binary(str(itemlist[1]).encode(), 128))
             logger.info ('len of {} is : {}'.format(liarchivebackup, rclient.llen(liarchivebackup)))
             rclient.lrem(liarchivebackup, 0, item)
             logger.info ('len of {} is : {}'.format(liarchivebackup, rclient.llen(liarchivebackup)))

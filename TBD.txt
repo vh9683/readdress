@@ -3,10 +3,10 @@ Lanch critical
 2. supervisor integration
 3. iptables update
 4. terms and conditions page / inclusion of same in the template
-5. support for changing the mapping of phone to email
+5. support for changing the mapping of phone to email -- > Done
 6. Add bounce handling for deregistered user
 7. https - update nginx, mandrill for same
-8. Avoiding double phone registration
+8. Avoiding double phone registration -- >Done
 
 Non critical
 1. separate page with signup instructions that can be shortened and given to other websites
