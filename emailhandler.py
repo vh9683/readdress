@@ -12,11 +12,11 @@ import sys
 import uuid
 from email.utils import parseaddr
 
-import dbops
-import validations 
-
 from redis import StrictRedis
 from validate_email import validate_email
+
+import dbops
+import validations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -99,6 +99,7 @@ def getToAddresses(msg):
         logger.info("NAME : {} ".format(toname))
 
         mto = taddrcomp.match(to)
+
         if mto is not None:
             maddress = subcomp.sub('@', mto.group(1), count=1)
             if maddress is not None:

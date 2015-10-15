@@ -1,9 +1,12 @@
 #! /usr/bin/python3.4
 
 import datetime
-import pymongo
-import validations
 import json
+
+import pymongo
+
+import validations
+
 
 class MongoORM:
     def __init__(self):
@@ -22,7 +25,7 @@ class MongoORM:
         self.lidb = self.conn.inbounddb.liMailBackUp
 
         self.backupdb.ensure_index("Expiry_date", expireAfterSeconds=0)
-        
+
         #Set expiry after 24 hours
         self.db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
@@ -32,113 +35,111 @@ class MongoORM:
         #expire after 30days from now
         self.db.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
-        def getdb(self):
-            return self.db
+    def getdb(self):
+        return self.db
 
-        def getactual(self, a):
-            user = getuser(a)
-            if not user:
-                return None
-            return user['actual']
+    def getactual(self, a):
+        user = self.getuser(a)
+        if not user:
+            return None
+        return user['actual']
 
-        def getuser(self, a):
-            if self.valids.isourdomain(a):
-                user = self.getdb().users.find_one({'mapped': a})
-            else:
-                user = self.getdb().users.find_one({'actual': a})
-            return user
+    def getuser(self, a):
+        if self.valids.isourdomain(a):
+            user = self.getdb().users.find_one({'mapped': a})
+        else:
+            user = self.getdb().users.find_one({'actual': a})
+        return user
 
-        def isknowndomain(self, a):
-            if self.valids.isourdomain(a):
-                return True
-            domain = self.valids.getdomain(a)
-            known = self.getdb().domains.find_one({'domain': domain })
-            if not known:
-                return False
+    def isknowndomain(self, a):
+        if self.valids.isourdomain(a):
+            return True
+        domain = self.valids.getdomain(a)
+        known = self.getdb().domains.find_one({'domain': domain })
+        if not known:
+            return False
+        return True
+
+    def insertUser(self, a, m, n=None, setExpiry = False):
+        user = self.getuser(a)
+        if user:
             return True
 
-        def insertUser(self, a, m, n=None, setExpiry = False):
-            user = getuser(a)
-            if user:
-                return True
-
-            if setExpiry:
-                utc_timestamp = datetime.datetime.utcnow()
-                if n:
-                   self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n, 'Expiry_date' : utc_timestamp} )
-                else:
-                   self.getdb().users.insert( { 'mapped': m, 'actual': a, 'Expiry_date': utc_timestamp } )
-            else:
-                if n:
-                   self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n} )
-                else:
-                   self.getdb().users.insert( { 'mapped': m, 'actual': a } )
-
-            return True
-
-        def getmapped(self, a):
-            user = self.getuser(a)
-            if not user:
-                return None
-            return user['mapped']
-
-        def findInviteUsers(self, mailid):
-            user = self.getdb().invitesRecipients.find_one( { 'email' : mailid } )
-            return user
-
-        def insertIntoInviteRecipients(self, mailid):
-            utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            self.getdb().invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
-            return
-
-        def findThread(self, msgId):
-            mailthread =self.getdb().threadMapper.find_one( { 'threadId' : msgId } )
-            return mailthread
-
-        def insertThread(self, msgId, references =None):
-            timestamp = datetime.datetime.now()
+        if setExpiry:
             utc_timestamp = datetime.datetime.utcnow()
-            if references is None:
-                self.getdb().threadMapper.insert( { 'threadId' : msgId , "date": timestamp, "Expiry_date" : utc_timestamp} )
+            if n:
+                self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n, 'Expiry_date' : utc_timestamp} )
             else:
-                self.getdb().threadMapper.insert( { 'threadId' : msgId, 'references' : references,
-                                        "date": timestamp, "Expiry_date" : utc_timestamp} )
-            return
+                self.getdb().users.insert( { 'mapped': m, 'actual': a, 'Expiry_date': utc_timestamp } )
+        else:
+            if n:
+                self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n} )
+            else:
+                self.getdb().users.insert( { 'mapped': m, 'actual': a } )
 
-        def findDeregistedUser(self, from_email):
-            duser = self.getdb().deregisteredUsers.find_one ( { 'actual' : from_email } )
-            return duser
+        return True
 
-        def updateExpAndInsertDeregUser(self, user):
-            utc_timestamp = datetime.datetime.utcnow()
-            self.getdb().users.update({"actual": user['actual']},
-                                      {"$set": {'Expiry_date': utc_timestamp}})
+    def getmapped(self, a):
+        user = self.getuser(a)
+        if not user:
+            return None
+        return user['mapped']
 
-            self.getdb().deregisteredUsers.insert( user )
-            return
+    def findInviteUsers(self, mailid):
+        user = self.getdb().invitesRecipients.find_one( { 'email' : mailid } )
+        return user
 
-        def getBackUpdb():
-            return self.backupdb
+    def insertIntoInviteRecipients(self, mailid):
+        utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        self.getdb().invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
+        return
 
-        def getLidb():
-            return self.lidb
+    def findThread(self, msgId):
+        mailthread = self.getdb().threadMapper.find_one( { 'threadId' : msgId } )
+        return mailthread
 
-        def removeUser(self, user):
-            self.getdb().users.remove( user )
-            return
+    def insertThread(self, msgId, references =None):
+        timestamp = datetime.datetime.now()
+        utc_timestamp = datetime.datetime.utcnow()
+        if references is None:
+            self.getdb().threadMapper.insert( { 'threadId' : msgId , "date": timestamp, "Expiry_date" : utc_timestamp} )
+        else:
+            self.getdb().threadMapper.insert( { 'threadId' : msgId, 'references' : references,
+                                    "date": timestamp, "Expiry_date" : utc_timestamp} )
+        return
 
-        def updatePluscode(self, actual, pluscode):
-            self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
-            return
-            
-        def dumpmail(self, message):
-            jsondata = json.loads(message)
-            utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
-            self.getBackUpdb().insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
-            return
+    def findDeregistedUser(self, from_email):
+        duser = self.getdb().deregisteredUsers.find_one ( { 'actual' : from_email } )
+        return duser
 
-        def lidump(self, itemlist, data):
-            self.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':data })
-            return
+    def updateExpAndInsertDeregUser(self, user):
+        utc_timestamp = datetime.datetime.utcnow()
+        self.getdb().users.update({"actual": user['actual']},
+                                  {"$set": {'Expiry_date': utc_timestamp}})
 
+        self.getdb().deregisteredUsers.insert( user )
+        return
 
+    def getBackUpdb(self):
+        return self.backupdb
+
+    def getLidb(self):
+        return self.lidb
+
+    def removeUser(self, user):
+        self.getdb().users.remove( user )
+        return
+
+    def updatePluscode(self, actual, pluscode):
+        self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
+        return
+
+    def dumpmail(self, message):
+        jsondata = json.loads(message)
+        utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        self.getBackUpdb().insert( {'from':jsondata['fa'], 'Expiry_date' : utc_timestamp, 'inboundJson':message } )
+        return
+
+    def lidump(self, itemlist, data):
+        self.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':data })
+        return
