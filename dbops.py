@@ -129,6 +129,7 @@ class MongoORM:
 
         def updatePluscode(self, actual, pluscode):
             self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
+            return
             
         def dumpmail(self, message):
             jsondata = json.loads(message)
