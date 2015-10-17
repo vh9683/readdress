@@ -134,6 +134,10 @@ class MongoORM:
         self.getdb().users.update ( {'actual' : actual }, {'$set' : {'pluscode': pluscode}})
         return
 
+    def updateMapped(self, actual, mapped):
+        self.getdb().users.update ( {'actual' : actual }, {'$set' : {'mapped': mapped}})
+        return
+
     def dumpmail(self, message):
         jsondata = json.loads(message)
         utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)

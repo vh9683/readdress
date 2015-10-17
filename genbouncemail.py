@@ -99,7 +99,6 @@ def sendmail( evKey, msg, to ):
     logger.info("sendmail key {}".format(key))
     return
 
-allowedcountries = [91,61,1]
 
 def genBounceEmail_handler(jsond):
     ''' 

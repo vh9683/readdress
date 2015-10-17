@@ -8,13 +8,13 @@ import hashlib
 import hmac
 import base64
 import datetime
-import phonenumbers
 import pluscodes
 from tornado.log import logging, gen_log
 from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
 from validate_email import validate_email
+from  validations import phoneValidations
 
 OUR_DOMAIN = "readdress.io"
 
@@ -120,7 +120,6 @@ class SignupHandler(tornado.web.RequestHandler):
 
   @coroutine
   def post(self):
-    allowedcountries = [91,61,1]
     if self.authenticatepost():
       gen_log.info('post authenticated successfully')
     else:
@@ -143,9 +142,9 @@ class SignupHandler(tornado.web.RequestHandler):
     if from_name is None or from_name is '':
       from_name = 'There'
     phonenum = ev['msg']['subject']
-    try:
-      phonedata = phonenumbers.parse(phonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException:
+
+    phvalids = phoneValidations(phonenum)
+    if not phvalids.validate():
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -154,7 +153,8 @@ class SignupHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
-    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
+
+    if not phvalids.is_number_valid():
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -163,7 +163,8 @@ class SignupHandler(tornado.web.RequestHandler):
       self.write({'status': 200})
       self.finish()
       return
-    if phonedata.country_code not in allowedcountries:
+
+    if not phvalids.is_allowed_MCC():
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "This Service is not available in your Country as of now."}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))

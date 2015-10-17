@@ -15,7 +15,7 @@ from redis import StrictRedis
 import dbops
 import validations 
 
-import phonenumbers
+from  validations import phoneValidations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -103,7 +103,6 @@ def sendmail( evKey, msg, to ):
     logger.info("sendmail key {}".format(key))
     return
 
-allowedcountries = [91,61,1]
 
 def emailDeregisterHandler(ev, pickledEv):
     ''' 
@@ -122,7 +121,6 @@ def emailDeregisterHandler(ev, pickledEv):
     from_email = ev['msg']['from_email']
     phonenum = ev['msg']['subject']
 
-
     duser = db.findDeregistedUser( from_email )
     if duser:
         text = "Phone number is already de-registered with us."
@@ -130,22 +128,21 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    try:
-        phonedata = phonenumbers.parse(phonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException as e:
-        logger.info ("Exception raised {}".format(e))
+    phvalids = phoneValidations(phonenum)
+    if not phvalids.validate():
+        logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if not phonenumbers.is_possible_number(phonedata) or not phonenumbers.is_valid_number(phonedata):
+    if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if phonedata.country_code not in allowedcountries:
+    if not phvalids.is_allowed_MCC():
         text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
@@ -169,7 +166,6 @@ def emailDeregisterHandler(ev, pickledEv):
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
-
 
     text = "Your alias will be unsibscribed in 24 hours. \n"
 

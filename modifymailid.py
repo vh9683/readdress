@@ -9,13 +9,12 @@ import pickle
 import sys
 import uuid
 from email.mime.text import MIMEText
-from email.utils import parseaddr
 
 from redis import StrictRedis
 
-import phonenumbers
 import dbops
 import validations
+from  validations import phoneValidations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -59,7 +58,6 @@ def prepareMail (ev, msg, body=None):
     frommail = msg['From']
     del msg['From']
 
-    tomail = msg['To']
     del msg['To']
 
     msg['To'] = frommail
@@ -105,8 +103,6 @@ def sendmail( evKey, msg, to ):
     logger.info("sendmail key {}".format(key))
     return
 
-allowedcountries = [91,61,1]
-
 def emailModifyHandler(ev, pickledEv):
     ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
@@ -137,27 +133,28 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    try:
-        oldphonedata = phonenumbers.parse(oldphonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException as e:
-        logger.info ("Exception raised {}".format(e))
+    phvalids = phoneValidations(oldphonenum)
+    if not phvalids.validate():
+        logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if not phonenumbers.is_possible_number(oldphonedata) or not phonenumbers.is_valid_number(oldphonedata):
+    if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if oldphonedata.country_code not in allowedcountries:
+    if not phvalids.is_allowed_MCC():
         text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
+    del phvalids
+    phvalids = None
 
     logger.info ("USER {}".format(user))
     logger.info( "OLD PHONE NUM : {} ".format(oldphonenum[1:]+'@'+OUR_DOMAIN) )
@@ -187,24 +184,21 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-
-
-    try:
-        newphonedata = phonenumbers.parse(newphonenum,None)
-    except phonenumbers.phonenumberutil.NumberParseException as e:
-        logger.info ("Exception raised {}".format(e))
+    phvalids = phoneValidations(newphonenum)
+    if not phvalids.validate():
+        logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if not phonenumbers.is_possible_number(newphonedata) or not phonenumbers.is_valid_number(newphonedata):
+    if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
 
-    if newphonedata.country_code not in allowedcountries:
+    if not phvalids.is_allowed_MCC():
         text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
@@ -216,13 +210,10 @@ def emailModifyHandler(ev, pickledEv):
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
-
     
-    db.removeUser(user)
-
-    db.insertUser (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN), ev['msg']['from_name'])
-
-    db.updatePluscode(user['actual'], user['pluscode'])
+    db.updateMapped (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN))
+    
+    # add modification collections ... its needed for premium customers
 
     text = "Your alias is changed to {}\n".format(newphonenum[1:]+'@'+OUR_DOMAIN)
 

@@ -1,8 +1,42 @@
 #! /usr/bin/python3.4
 
 import uuid
+import phonenumbers
 
 OUR_DOMAIN = 'readdress.io'
+
+allowedcountries = [91,61,1]
+
+class phoneValidations:
+    def __init__(self, phnumber):
+        self.number = 0
+        self.number = phnumber
+        self.numberdata = None
+        self.error = None
+        self.valid = True
+
+    def validate(self):
+        try:
+           self.numberdata = phonenumbers.parse(self.number,None)
+        except phonenumbers.phonenumberutil.NumberParseException as e:
+           self.error = e
+           self.valid = False
+
+        return self.valid
+
+    def get_result(self):
+        return self.error
+    
+    def is_number_valid(self):
+        if not phonenumbers.is_possible_number(self.numberdata) or not phonenumbers.is_valid_number(self.numberdata):
+            self.valid = False
+            return self.valid
+
+    def is_allowed_MCC(self):
+        if self.numberdata.country_code not in allowedcountries:
+            self.valid = False
+            return self.valid
+
 
 class Validations:
     def getdomain(self, a):
