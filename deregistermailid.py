@@ -15,7 +15,7 @@ from redis import StrictRedis
 import dbops
 import validations 
 
-from  validations import phoneValidations
+from  validations import PhoneValidations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -128,7 +128,7 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    phvalids = phoneValidations(phonenum)
+    phvalids = PhoneValidations(phonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"

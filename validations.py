@@ -7,7 +7,7 @@ OUR_DOMAIN = 'readdress.io'
 
 allowedcountries = [91,61,1]
 
-class phoneValidations:
+class PhoneValidations:
     def __init__(self, phnumber):
         self.number = 0
         self.number = phnumber

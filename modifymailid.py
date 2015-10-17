@@ -14,7 +14,7 @@ from redis import StrictRedis
 
 import dbops
 import validations
-from  validations import phoneValidations
+from  validations import PhoneValidations
 
 FILESIZE=1024*1024*1024 #1MB
 instance = "0"
@@ -133,7 +133,7 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    phvalids = phoneValidations(oldphonenum)
+    phvalids = PhoneValidations(oldphonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
@@ -184,7 +184,7 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    phvalids = phoneValidations(newphonenum)
+    phvalids = PhoneValidations(newphonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
@@ -248,7 +248,7 @@ if __name__ == '__main__':
         exit()
 
     formatter = logging.Formatter('MAIL-DEREG-HANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailmodifyhandle'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailmodifyhandle_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)

@@ -14,7 +14,7 @@ from motor import MotorClient
 from tornado.gen import coroutine
 from redis import StrictRedis
 from validate_email import validate_email
-from  validations import phoneValidations
+from  validations import PhoneValidations
 
 OUR_DOMAIN = "readdress.io"
 
@@ -143,7 +143,7 @@ class SignupHandler(tornado.web.RequestHandler):
       from_name = 'There'
     phonenum = ev['msg']['subject']
 
-    phvalids = phoneValidations(phonenum)
+    phvalids = PhoneValidations(phonenum)
     if not phvalids.validate():
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
