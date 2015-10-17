@@ -160,7 +160,7 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    if not db.isregistereduser(user['mapped']):
+    if not valids.isregistereduser(user['mapped']):
         #ignore silently
         return True
 

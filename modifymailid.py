@@ -63,10 +63,14 @@ def prepareMail (ev, msg, body=None):
     del msg['To']
 
     msg['To'] = frommail
-    msg['From'] = tomail
+    msg['From'] = 'noreply@readdress.io'
 
-    fromname, fromemail = parseaddr(tomail)
-    ev['msg']['from_email'] = fromemail
+    #fromname, fromemail = parseaddr(tomail)
+    ev['msg']['from_email'] = 'noreply@readdress.io'
+
+    logger.info ("From mail : {} ".format(msg['From']))
+    logger.info ("To mail : {} ".format(msg['To']))
+    logger.info ("from_email mail : {} ".format(ev['msg']['from_email']))
 
     if body:
         text = bodypart.format(body)
@@ -83,9 +87,10 @@ def prepareMail (ev, msg, body=None):
     msg.add_header('reply-to', 'noreply@readdress.io')
 
     pickledEv = pickle.dumps(ev)
-    del ev['msg']['raw_msg']
     evKey =  uuid.uuid4().hex
+    rclient.delete(evKey)
     rclient.set(evKey, pickledEv)
+    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
 
     return evKey, frommail
 
@@ -119,9 +124,9 @@ def emailModifyHandler(ev, pickledEv):
     from_email = ev['msg']['from_email']
     csvphonenum = ev['msg']['subject']
 
-    oldphonenum = csvphonenum.split(',')[0]
+    oldphonenum = csvphonenum.split(',')[0].strip()
 
-    newphonenum = csvphonenum.split(',')[1]
+    newphonenum = csvphonenum.split(',')[1].strip()
 
     user = db.getuser(from_email)
 
@@ -154,7 +159,10 @@ def emailModifyHandler(ev, pickledEv):
         return True
 
 
+    logger.info ("USER {}".format(user))
+    logger.info( "OLD PHONE NUM : {} ".format(oldphonenum[1:]+'@'+OUR_DOMAIN) )
     oldphoneuser = db.getuser(oldphonenum[1:]+'@'+OUR_DOMAIN)
+    logger.info("oldphoneuser {}".format(oldphoneuser))
     if not user or not oldphoneuser:
         text = "Old Phone number given is not registered with us, please check and retry. \n "
         evKey, recepient = prepareMail (ev, msg, text)
@@ -166,6 +174,20 @@ def emailModifyHandler(ev, pickledEv):
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
         return True
+
+    if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+OUR_DOMAIN):
+        text = " Your email id and old phone number does not match, please check and retry. \n "
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+    if user['mapped'] != oldphoneuser['mapped']:
+        text = "You are not allowed to change this phone number, please check and retry. \n "
+        evKey, recepient = prepareMail (ev, msg, text)
+        sendmail(evKey, msg, recepient)
+        return True
+
+
 
     try:
         newphonedata = phonenumbers.parse(newphonenum,None)
@@ -195,12 +217,7 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+OUR_DOMAIN):
-        text = " Your email id and old phone number does not match, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
-        return True
-
+    
     db.removeUser(user)
 
     db.insertUser (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN), ev['msg']['from_name'])

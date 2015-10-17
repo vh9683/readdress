@@ -682,7 +682,7 @@ inbounddb.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 rclient = StrictRedis()
 
-ignoredmails = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' ]
+ignoredmails = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io' ]
 
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
@@ -694,7 +694,8 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q",
                                   "/pluscode": "oKkvJSC7REP5uvojOBFcfg",
                                   "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw",
-                                  "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg"},
+                                  "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg",
+                                  "/changephone": "AFpsYX7y1GJ67vakDqoxpA"},
              "ignored_in_recv" : ignoredmails,
 }
 
