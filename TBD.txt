@@ -6,6 +6,8 @@ Lanch critical
 7. https - update nginx, mandrill for same
 
 Non critical
+* Should we handle cases where email-id is modified and difft users are to be notfied abt the same
+
 1. separate page with signup instructions that can be shortened and given to other websites
 2. Send deregister cancel link for deregister/unsunsbcribe mailid
 3. https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
