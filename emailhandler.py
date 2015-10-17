@@ -36,7 +36,8 @@ subcomp = re.compile('__')
 
 rclient = StrictRedis()
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 15*60
+SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 def newmapaddr(a, n=None, setExpiry=None):
     sendInvite2User = False
@@ -68,6 +69,19 @@ def populate_from_addresses(msg):
         msg['From'] = mapped
     logger.info('From: ' + str(msg['From']))
     return True, sendInvite2User
+
+
+def sendBounceMail (evKey, origmail, userslist):
+    logger.info("Sending bounce mails to originator for following mails :{}".format(userslist))
+    data = dict()
+    data['evkey'] = evKey
+    data['origmail'] = origmail
+    data['userslist'] = userslist
+
+    rclient.lpush('genBounceMailHandle', pickle.dumps( convertDictToJson(data) ) )
+    del data
+    return 
+
 
 def sendInvite (invitesrcpts, fromname):
     logger.info("Sending invites from {} to {}".format(fromname, ','.join(invitesrcpts)))
@@ -292,10 +306,10 @@ def mapaddrlist(li):
 def sendmail( evKey, msg, to ):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
+    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     ''' mark key to exipre after 15 secs'''
     msg = None
     key = key.encode()
-    #rclient.expire(key, 5*60)
     rclient.lpush('sendmail', key)
     logger.info("sendmail key {}".format(key))
     return
@@ -479,8 +493,9 @@ def emailHandler(ev, pickledEv):
     rclient.set(evKey, pickledEv)
     ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
     ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
-    #rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
     logger.info("All recipients {}".format(allrecipients))
+    deregusers = list()
     for mailid in allrecipients:
         if not valids.isourdomain(mailid[0]):
             continue
@@ -507,10 +522,21 @@ def emailHandler(ev, pickledEv):
         logger.info("Pushing msg to sendmail list {}\n".format(recepient))
 
         #below check is to prevent sending mail to self readdress ... 
-        if ev['msg']['from_email'] != db.getactual(mailid[0]):
+        if ev['msg']['from_email'] == db.getactual(mailid[0]):
+            continue
+        elif db.findDeregistedUser(recepient) :
+            deregusers.append(recepient)
+            continue
+        else:
             sendmail(evKey, msg, recepient)
 
-    sendInvite(totalinvitercpts, fromname)
+    if len(totalinvitercpts):
+        sendInvite(totalinvitercpts, fromname)
+
+    # send bounce mail to originator
+    if len(deregusers):
+        sendBounceMail (evKey, origmsg, deregusers)
+
     del origmsg
     del msg
     return True
@@ -553,7 +579,8 @@ if __name__ == '__main__':
             evt = rclient.brpop (mailhandlerBackUp)
             backupmail = True
             ev = pickle.loads(evt[1])
-            pickledEv = pickle.dumps(ev)
+            #pickledEv = pickle.dumps(ev)
+            pickledEv = evt[1]
             logger.info("Getting events from {}".format(mailhandlerBackUp))
         else:
             pickledEv = rclient.brpoplpush('mailhandler', mailhandlerBackUp)

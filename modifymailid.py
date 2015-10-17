@@ -31,6 +31,7 @@ db = dbops.MongoORM()
 valids = validations.Validations()
 
 REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
+SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 html = """\
 <html>
@@ -91,10 +92,10 @@ def prepareMail (ev, msg, body=None):
 def sendmail( evKey, msg, to ):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
+    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     msg = None
     ''' mark key to exipre after 15 secs'''
     key = key.encode()
-    #rclient.expire(key, 5*60)
     rclient.lpush('sendmail', key)
     logger.info("sendmail key {}".format(key))
     return

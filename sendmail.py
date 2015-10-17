@@ -1,7 +1,6 @@
 #! /usr/bin/python3.4
 
 from redis import StrictRedis
-import pymongo
 import pickle
 import logging
 import logging.handlers
@@ -64,13 +63,6 @@ if __name__ == '__main__':
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)
 
-    try:
-        conn=pymongo.MongoClient()
-        print ("Connected successfully!!!")
-    except pymongo.errors.ConnectionFailure as e:
-        print ("Could not connect to MongoDB: %s" % e )
-
-    db = conn.inbounddb.liMailBackUp
     rclient = StrictRedis()
 
     sendmailbackup = 'sendmailbackup_'+instance
@@ -99,6 +91,7 @@ if __name__ == '__main__':
                 evpickle = rclient.get(evKey)
                 ev = pickle.loads(evpickle)
                 sendmail(ev, msgtuple[1], msgtuple[0], logger)
+                rclient.delete(evKey)
             else:
                 pass
         else:

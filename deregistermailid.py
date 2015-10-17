@@ -33,7 +33,8 @@ OUR_DOMAIN = 'readdress.io'
 
 rclient = StrictRedis()
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 15*60
+SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 html = """\
 <html>
@@ -87,16 +88,17 @@ def prepareMail (ev, msg, body=None):
     del ev['msg']['raw_msg']
     evKey =  uuid.uuid4().hex
     rclient.set(evKey, pickledEv)
+    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
 
     return evKey, frommail
 
 def sendmail( evKey, msg, to ):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
+    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     msg = None
     ''' mark key to exipre after 15 secs'''
     key = key.encode()
-    #rclient.expire(key, 5*60)
     rclient.lpush('sendmail', key)
     logger.info("sendmail key {}".format(key))
     return
@@ -181,7 +183,7 @@ def emailDeregisterHandler(ev, pickledEv):
     return True
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='EmailHandler .')
+    parser = argparse.ArgumentParser(description='DeRegEmailHandler .')
     parser.add_argument('-i','--instance', help='Instance Num of this script ', required=True)
     parser.add_argument( '-d', '--debug', help='email dump file', required=False)
 
