@@ -82,7 +82,8 @@ def prepareMail (evKey, msg, body=None):
     msg.add_header('reply-to', fromemail)
 
     pickledEv = pickle.dumps(ev)
-    rclient.delete(evKey)
+
+    evKey =  uuid.uuid4().hex
     rclient.set(evKey, pickledEv)
     rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
 
