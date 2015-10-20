@@ -1,5 +1,5 @@
 Lanch critical
-1. email address for phone to lat lng / plus code conversion
+1. email address for phone to lat lng / plus code conversion : https://github.com/google/open-location-code/
 2. supervisor integration
 3. iptables update
 4. terms and conditions page / inclusion of same in the template
