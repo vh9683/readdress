@@ -3,7 +3,11 @@ Lanch critical
 2. supervisor integration
 3. iptables update
 4. terms and conditions page / inclusion of same in the template
-7. https - update nginx, mandrill for same
+5. https - update nginx, mandrill for same
+6. Update the users collection with field 'phone_verified'
+7. self signed certificate for mandrill post
+8. move allowed countries to db 
+
 
 Non critical
 * Should we handle cases where email-id is modified and difft users are to be notfied abt the same
