@@ -27,6 +27,8 @@ class MongoORM:
 
         self.lidb = self.conn.inbounddb.liMailBackUp
 
+        self.mccdb = self.conn.inbounddb.mccdb
+
         self.backupdb.ensure_index("Expiry_date", expireAfterSeconds=0)
 
         #Set expiry after 24 hours
@@ -171,3 +173,9 @@ class MongoORM:
     def lidump(self, itemlist, data):
         self.getLidb().insert( { 'tagged':itemlist[0], 'inboundJson':data })
         return
+
+    def getmccdb(self):
+        return self.mccdb
+
+    def getMCC(self, mcc):
+        return self.getmccdb().find( { mcc :  { '$exists' : 'true' } } )

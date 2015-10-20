@@ -142,7 +142,7 @@ def emailDeregisterHandler(ev, pickledEv):
         sendmail(evKey, msg, recepient)
         return True
 
-    if not phvalids.is_allowed_MCC():
+    if not phvalids.is_allowed_MCC(db):
         text = " This Service is not available in your Country as of now. \n "
         evKey, recepient = prepareMail (ev, msg, text)
         sendmail(evKey, msg, recepient)
