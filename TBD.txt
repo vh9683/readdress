@@ -1,12 +1,8 @@
 Lanch critical
-1. email address for phone to lat lng / plus code conversion : https://github.com/google/open-location-code/
 2. supervisor integration
 3. iptables update
 4. terms and conditions page / inclusion of same in the template
 5. https - update nginx, mandrill for same
-6. Update the users collection with field 'phone_verified'
-7. self signed certificate for mandrill post
-8. move allowed countries to db 
 
 
 Non critical
@@ -17,3 +13,4 @@ Non critical
 3. https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
 4. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, use genemail for this
 5. client only API to retrive plus.code from phone number for integration with registered websites - similar to google sigin
+1. email address for phone to lat lng / plus code conversion : https://github.com/google/open-location-code/
