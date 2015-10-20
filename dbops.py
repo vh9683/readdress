@@ -7,6 +7,9 @@ import pymongo
 
 import validations
 
+def convertDictToJson(data):
+    json_data = json.dumps(data)
+    return json_data
 
 class MongoORM:
     def __init__(self):
@@ -60,22 +63,33 @@ class MongoORM:
             return False
         return True
 
-    def insertUser(self, a, m, n=None, setExpiry = False):
+    def insertUser(self, a, m, n=None, setExpiry = False, phoneValidated=False):
         user = self.getuser(a)
         if user:
             return True
 
-        if setExpiry:
+        data = dict()
+        data['actual'] = a
+        data['mapped'] = m
+
+        if n:
+            data['name'] = n
+
+        if setExpiry: 
             utc_timestamp = datetime.datetime.utcnow()
-            if n:
-                self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n, 'Expiry_date' : utc_timestamp} )
-            else:
-                self.getdb().users.insert( { 'mapped': m, 'actual': a, 'Expiry_date': utc_timestamp } )
-        else:
-            if n:
-                self.getdb().users.insert( {'mapped': m, 'actual': a, 'name' : n} )
-            else:
-                self.getdb().users.insert( { 'mapped': m, 'actual': a } )
+            data['setExpiry'] = utc_timestamp
+
+        phValid = 'False'
+        if phoneValidated:
+            phValid = 'True'
+        
+        data['phone_verified'] = phValid
+        json_data = convertDictToJson(data)
+
+        self.getdb().users.insert( json_data )
+
+        del data
+        del json_data
 
         return True
 
@@ -101,11 +115,21 @@ class MongoORM:
     def insertThread(self, msgId, references =None):
         timestamp = datetime.datetime.now()
         utc_timestamp = datetime.datetime.utcnow()
-        if references is None:
-            self.getdb().threadMapper.insert( { 'threadId' : msgId , "date": timestamp, "Expiry_date" : utc_timestamp} )
-        else:
-            self.getdb().threadMapper.insert( { 'threadId' : msgId, 'references' : references,
-                                    "date": timestamp, "Expiry_date" : utc_timestamp} )
+        
+        data = dict()
+        data['threadId'] =  msgId
+        data['date'] =  timestamp
+        data['Expiry_date'] = utc_timestamp
+
+        if references:
+            data['references'] = references
+
+        json_data = convertDictToJson(data)
+
+        self.getdb().threadMapper.insert( json_data)
+        del data
+        del json_data
+
         return
 
     def findDeregistedUser(self, from_email):

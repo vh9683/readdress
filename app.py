@@ -76,26 +76,32 @@ class VerifyHandler(tornado.web.RequestHandler):
     self.render("success.html",reason=reason)
     return
 
-class SignupHandler(tornado.web.RequestHandler):
+class ValidatePost():
+    def validate(self, request):
+        gen_log.info('authenticatepost for ' + request.path)
+        authkey = self.settings['Mandrill_Auth_Key'][request.path].encode()
+        if 'X-Mandrill-Signature' in request.headers:
+          rcvdsignature = request.headers['X-Mandrill-Signature']
+        else:
+          gen_log.info('Invalid post from ' + request.remote_ip)
+          return False
+        data = request.full_url()
+        argkeys = sorted(request.arguments.keys())
+        for arg in argkeys:
+          data += arg
+          for args in self.request.arguments[arg]:
+            data += args.decode()
+        hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+        asignature = base64.b64encode(hashed.digest()).decode()
+        gen_log.info('rcvdsignature ' + str(rcvdsignature))
+        gen_log.info('asignature ' + str(asignature))
+        return asignature == rcvdsignature
+
+   
+class SignupHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
+    return super(ValidatePost, self).validate(self.request)
 
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
@@ -222,26 +228,10 @@ class SignupHandler(tornado.web.RequestHandler):
     return    
 
 
-class DeregisterHandler(tornado.web.RequestHandler):
+class DeregisterHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
+    return super(ValidatePost, self).validate(self.request)
 
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
@@ -297,27 +287,11 @@ class DeregisterHandler(tornado.web.RequestHandler):
     return    
 
 
-class ModifyHandler(tornado.web.RequestHandler):
+class ModifyHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
-
+    return super(ValidatePost, self).validate(self.request)
+    
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -372,26 +346,10 @@ class ModifyHandler(tornado.web.RequestHandler):
 
 
 
-class PluscodeHandler(tornado.web.RequestHandler):
+class PluscodeHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
+    return super(ValidatePost, self).validate(self.request)
 
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
@@ -466,27 +424,11 @@ class PluscodeHandler(tornado.web.RequestHandler):
       self.finish()
       return
 
-class InviteFriendHandler(tornado.web.RequestHandler):
+class InviteFriendHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
-
+    return super(ValidatePost, self).validate(self.request)
+    
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -598,27 +540,11 @@ class InviteFriendHandler(tornado.web.RequestHandler):
     self.finish()
     return
  
-class RecvHandler(tornado.web.RequestHandler):
+class RecvHandler(tornado.web.RequestHandler, ValidatePost):
   def authenticatepost(self):
     gen_log.info('authenticatepost for ' + self.request.path)
-    authkey = self.settings['Mandrill_Auth_Key'][self.request.path].encode()
-    if 'X-Mandrill-Signature' in self.request.headers:
-      rcvdsignature = self.request.headers['X-Mandrill-Signature']
-    else:
-      gen_log.info('Invalid post from ' + self.request.remote_ip)
-      return False
-    data = self.request.full_url()
-    argkeys = sorted(self.request.arguments.keys())
-    for arg in argkeys:
-      data += arg
-      for args in self.request.arguments[arg]:
-        data += args.decode()
-    hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-    asignature = base64.b64encode(hashed.digest()).decode()
-    gen_log.info('rcvdsignature ' + str(rcvdsignature))
-    gen_log.info('asignature ' + str(asignature))
-    return asignature == rcvdsignature
-
+    return super(ValidatePost, self).validate(self.request)
+    
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
