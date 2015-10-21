@@ -72,6 +72,12 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
 
+class TOSHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("tos.html")
+
+
+
 class VerifyHandler(BaseHandler):
   @coroutine
   def get(self,sessionid):
@@ -515,6 +521,7 @@ settings = {"static_path": "frontend/Freeze/",
 
 application = tornado.web.Application([
     (r"/", MainHandler),
+    (r"/tos", TOSHandler),
     (r"/recv", RecvHandler),
     (r"/verify/(.*)", VerifyHandler),
     (r"/signup", SignupHandler),
