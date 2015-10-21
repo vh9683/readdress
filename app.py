@@ -39,6 +39,35 @@ class BaseHandler(tornado.web.RequestHandler):
         gen_log.info('asignature ' + str(asignature))
         return asignature == rcvdsignature
 
+    def write_error(self,status_code,**kwargs):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+
+    def getdomain(self,a):
+        return a.split('@')[-1]
+
+    def isourdomain(self, a):
+        return self.getdomain(a) == OUR_DOMAIN
+
+    @coroutine
+    def getuser(self,a):
+        inbounddb = self.settings['inbounddb']
+        if self.isourdomain(a):
+          user = yield inbounddb.users.find_one({'mapped': a})
+        else:
+          user = yield inbounddb.users.find_one({'actual': a})
+        return user
+
+    @coroutine
+    def getmapped(self, a):
+        user = yield self.getuser(a)
+        if not user:
+          return None
+        return user['mapped']
+
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
@@ -99,27 +128,6 @@ class VerifyHandler(BaseHandler):
 
    
 class SignupHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
-  def getdomain(self,a):
-    return a.split('@')[-1]
-  
-  def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN
-
-  @coroutine
-  def getuser(self,a):
-    inbounddb = self.settings['inbounddb']
-    if self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'mapped': a})
-    else:
-      user = yield inbounddb.users.find_one({'actual': a})
-    return user
-
   @coroutine
   def post(self):
     if self.validate(self.request):
@@ -225,27 +233,6 @@ class SignupHandler(BaseHandler):
 
 
 class DeregisterHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
-  def getdomain(self,a):
-    return a.split('@')[-1]
-  
-  def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN
-
-  @coroutine
-  def getuser(self,a):
-    inbounddb = self.settings['inbounddb']
-    if self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'mapped': a})
-    else:
-      user = yield inbounddb.users.find_one({'actual': a})
-    return user
-
   @coroutine
   def post(self):
     if self.validate(self.request):
@@ -280,27 +267,6 @@ class DeregisterHandler(BaseHandler):
 
 
 class ModifyHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
-  def getdomain(self,a):
-    return a.split('@')[-1]
-  
-  def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN
-
-  @coroutine
-  def getuser(self,a):
-    inbounddb = self.settings['inbounddb']
-    if self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'mapped': a})
-    else:
-      user = yield inbounddb.users.find_one({'actual': a})
-    return user
-
   @coroutine
   def post(self):
     if self.validate(self.request):
@@ -335,27 +301,6 @@ class ModifyHandler(BaseHandler):
 
 
 class PluscodeHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
-  def getdomain(self,a):
-    return a.split('@')[-1]
-  
-  def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN
-
-  @coroutine
-  def getuser(self,a):
-    inbounddb = self.settings['inbounddb']
-    if self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'mapped': a})
-    else:
-      user = yield inbounddb.users.find_one({'actual': a})
-    return user
-
   @coroutine
   def post(self):
     if self.validate(self.request):
@@ -409,34 +354,6 @@ class PluscodeHandler(BaseHandler):
       return
 
 class InviteFriendHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
-  def getdomain(self,a):
-    return a.split('@')[-1]
-  
-  def isourdomain(self, a):
-    return self.getdomain(a) == OUR_DOMAIN
-
-  @coroutine
-  def getuser(self,a):
-    inbounddb = self.settings['inbounddb']
-    if self.isourdomain(a):
-      user = yield inbounddb.users.find_one({'mapped': a})
-    else:
-      user = yield inbounddb.users.find_one({'actual': a})
-    return user
-
-  @coroutine
-  def getmapped(self, a):
-    user = yield self.getuser(a)
-    if not user:
-      return None
-    return user['mapped']
-
   @coroutine
   def sendInvite (self, mailid, fromname):
     gen_log.info("Sending invites from {} to {}".format(fromname, mailid))
@@ -521,12 +438,6 @@ class InviteFriendHandler(BaseHandler):
     return
  
 class RecvHandler(BaseHandler):
-  def write_error(self,status_code,**kwargs):
-    self.set_status(200)
-    self.write({'status': 200})
-    self.finish()
-    return
-  
   def post(self):
     if self.validate(self.request):
       gen_log.info('post authenticated successfully')
@@ -561,7 +472,6 @@ class RecvHandler(BaseHandler):
       ''' stage 1 do mail archive for all mails '''
 
       ''' Push the entire json to mailhandler thread through redis list'''
-      gen_log.info(str(ev))
       pickledEv = pickle.dumps(ev)
       rclient.lpush('mailhandler', pickledEv)
 
