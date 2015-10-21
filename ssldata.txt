@@ -1,0 +1,96 @@
+Crt4ProjReaddr
+
+save the below as ssl.ikey
+-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: AES-256-CBC,481FE29C0C1F62BE273A8CCAD3C707B0
+
+6icbRGkNHjmfbFMzzXOubVVccsS6U7dxAMkXR97CWp6JTKOJdQYjcWO0ifTchMYe
+ED6t3ytTSf4CwCCAkiv+FJi/g0MscOLP5fPB5ABWvVy6/h2+ig3ygHGcxgcubfi5
+YMtNiqm3WEnDl+Kp4Nkoz3tO+SLDZteMnfKTwwUO+soAtQzYMz/+gN+W6YNOV67y
+ck3Ey6hUtYBt3opW0RC7H3feDZlau9O1GhUbBfLdY46M33kL0l6ThA91mOmkiJvR
+hltzOS0uqbuQEcaRTiU00jixB/rgQvGpGyE3Ji5bTqxdSI2N1tOM0cr4WTNWR8dK
+2oQz++K5dv5Nym5+FxZyvI8Tuxi91kUAZTmKYK04SNoo4qttfV/KlKVmB8+yMcwu
+m+UFi540fhXt1vGQYXV0io0jvt7mGHFrZjllxJsBbYrShc1UCOiNw7gFx1/Q+f7l
+tz3OU7mDgarjk1UcIvpHFUa64UIMGlPgyKPii0pozLPy9sewHqARqNAwpa0DuS8C
+4n1Y8DeElUhSfX6siJ6gzZnomcNj8PLRXTWx8kWQyfpXrUUohZqVHYsvAOCemlsX
+FvWircbBIgLuvbFx49PMhBBR1i//KhiY3R77zLuMXPEwmPcatdnxXzhhrOjojL3o
+5RxGrE4+VjuNRegg6XWjdWA8iJyLGKqsd2tIE7w+/nKYbs6YKdfjmhxmKICm6XDg
+PctlRFgczfB0rGfSn5nJKOMDe13L3/pbL4HdCW25g6JqktM6gpTo0rDTwp9mcVwy
+kMDCK5r+s/ERDM/HL/OUtyMwkIg1xmUJI54owlWwJRR/7vNxRnnoSZdHiacJEyC8
+Npj6i4/zlDi/vDhfiC7GtGkfp2Sateu2b/CBx4l3SLVaOGnkTrQDRNGuCyE//PzZ
+L3EIQVapoXmUXaNGC1aqNzEvTZELgT10aMVYVwfFceR/tTIFuxmDjnjDK0tZ/kba
+qwDq3/M8mJUyrBEMLukZHEb5bbSCF3EImURYDFVAcgpB+gFjLDNEw09HKpfrSGyO
+icdKbBxN5h9GBYoD9XrnN3JCrKYTgYHZAa4VFu35tiIveVkgtHwz9na2KphK1bV7
+1F/oYjJkAYwCE6PsDuysIXMRI07xpgcmesoFMwGEpedVFnmisx+c5mZM46/2rvDw
+Try+HJDpnqm0AZcBOFg2mOo91q/EcUp6itiFfE34bC7qy+0XIIgXeKBhzBKV7KmY
+Y6VDU6snIJtr++37w6+1Tt5KuyuGsAjwrlbqv9DwMMHKVOpjHSx5T0x/7CGdDOrf
+lcy957HirphPrOYOhFcfFdr6Dhp34H2OctI8fvh5hugnLiUJHpR7DUe3UoveJmHU
+SwzNMThd8HIV6CrGgk9xQXu07Dk0ZmboKW7nyvySRcWaBzNm9jTx7fSzTd79PoyO
+dR3NrWhvGrqNiFBDNnGftY4LGFF2VXhd032El2Ff7lykg8IoLb7EBwV9dS+xhi0m
+8Cu5bwg+HOhoQjAEq7Fp5KJfqSfP8GAupO532UE+pzlHKstgXuIZEDggVp9klspB
+h3Ia+QB7DTtxzbbEYUMTpphDL22phd8u1qK8gUo/aooFCg1w/YDwd/whnOL/0ZYJ
+-----END RSA PRIVATE KEY-----
+
+
+
+
+Save the below as ssl.crt
+-----BEGIN CERTIFICATE-----
+MIIGSTCCBTGgAwIBAgIHBnfvlZn77DANBgkqhkiG9w0BAQsFADCBjDELMAkGA1UE
+BhMCSUwxFjAUBgNVBAoTDVN0YXJ0Q29tIEx0ZC4xKzApBgNVBAsTIlNlY3VyZSBE
+aWdpdGFsIENlcnRpZmljYXRlIFNpZ25pbmcxODA2BgNVBAMTL1N0YXJ0Q29tIENs
+YXNzIDEgUHJpbWFyeSBJbnRlcm1lZGlhdGUgU2VydmVyIENBMB4XDTE1MTAyMDA4
+MjgzNVoXDTE2MTAyMTAyMTIyM1owUzELMAkGA1UEBhMCSU4xHDAaBgNVBAMTE21h
+aWxlci5yZWFkZHJlc3MuaW8xJjAkBgkqhkiG9w0BCQEWF3Bvc3RtYXN0ZXJAcmVh
+ZGRyZXNzLmlvMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1Y+ji1Vq
+NM0rEoKcyd2+uJO+CcLeb+3RAW/GEF1Sa71FhyM/fz1Lta9wk6QhQhW2HwS21eY7
+if4Zoo3HMSsJYc+rRr+HOX4dX4rduTUo3sVRQGuPKXZ4P3iQIdBSs+Mdt81iiSLX
+U1ad2Fwp0nrHOoAWWgu+QM7jo96zh48UCxHhpVfw3WC1PZHgkPxoQM5gk9UmGCWh
+VmvJKbzsni81cJllzGHnOdvNezK/xM3cYFDfv8QeQU6X24jTtuYtSfv61Xc4HaAz
+NMqL5lEQCymEvg+Zk7GpGW2pJn51EvtThOimCclpJGOgYYSn/sKEQclgD+9x2XDC
+x3MA3Ddg/CRc0QIDAQABo4IC5jCCAuIwCQYDVR0TBAIwADALBgNVHQ8EBAMCA6gw
+EwYDVR0lBAwwCgYIKwYBBQUHAwEwHQYDVR0OBBYEFEMgA9nFsgmdg5TKZh7fjLQc
+ZnRcMB8GA1UdIwQYMBaAFOtCNNCYsKuf9BtrCPfMZC7vDixFMCwGA1UdEQQlMCOC
+E21haWxlci5yZWFkZHJlc3MuaW+CDHJlYWRkcmVzcy5pbzCCAVYGA1UdIASCAU0w
+ggFJMAgGBmeBDAECATCCATsGCysGAQQBgbU3AQIDMIIBKjAuBggrBgEFBQcCARYi
+aHR0cDovL3d3dy5zdGFydHNzbC5jb20vcG9saWN5LnBkZjCB9wYIKwYBBQUHAgIw
+geowJxYgU3RhcnRDb20gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwAwIBARqBvlRo
+aXMgY2VydGlmaWNhdGUgd2FzIGlzc3VlZCBhY2NvcmRpbmcgdG8gdGhlIENsYXNz
+IDEgVmFsaWRhdGlvbiByZXF1aXJlbWVudHMgb2YgdGhlIFN0YXJ0Q29tIENBIHBv
+bGljeSwgcmVsaWFuY2Ugb25seSBmb3IgdGhlIGludGVuZGVkIHB1cnBvc2UgaW4g
+Y29tcGxpYW5jZSBvZiB0aGUgcmVseWluZyBwYXJ0eSBvYmxpZ2F0aW9ucy4wNQYD
+VR0fBC4wLDAqoCigJoYkaHR0cDovL2NybC5zdGFydHNzbC5jb20vY3J0MS1jcmwu
+Y3JsMIGOBggrBgEFBQcBAQSBgTB/MDkGCCsGAQUFBzABhi1odHRwOi8vb2NzcC5z
+dGFydHNzbC5jb20vc3ViL2NsYXNzMS9zZXJ2ZXIvY2EwQgYIKwYBBQUHMAKGNmh0
+dHA6Ly9haWEuc3RhcnRzc2wuY29tL2NlcnRzL3N1Yi5jbGFzczEuc2VydmVyLmNh
+LmNydDAjBgNVHRIEHDAahhhodHRwOi8vd3d3LnN0YXJ0c3NsLmNvbS8wDQYJKoZI
+hvcNAQELBQADggEBAJtBwV0bqY3M2pU2ZoByYFKkkAF3DkLsw3s1O5ro8hD4oPqW
+8lbXaY7HFR0ar1jpIlxITgXR93MFV3nGleRAVLsPnMuQHsnEHoan9AERqgbWf1pb
+N6pTb2NQt6INBjealHg//+MeKKtwWMbsJt6f8zjmBenxyP39fOMLg4dbBy0SqbR0
+n/zwXHD157S0Q4I+bqb5B6nr0Uve9R54pKmTPhkkZC5zCipRP4aNWClpnZq4jw5C
+9OBGvakaCqG/U+D4V001ChzQw+yUlqEbC1u6WGaeemY1+vMgw/5sYFIzbnxs+USy
+jCU4gaJDaYrV3EK7wVweRd4XYraCgW1KNz2mX0g=
+-----END CERTIFICATE-----
+
+Decrypt the private key by using the password you entered when you created your key:
+openssl rsa -in ssl.ikey -out /etc/nginx/conf/ssl.key
+
+Protect your key from prying eyes:
+chmod 600 /etc/nginx/conf/ssl.key
+
+Fetch the Root CA and Class 1 Intermediate Server CA certificates:
+wget http://www.startssl.com/certs/sub.class1.server.ca.pem
+
+Create a unified certificate from your certificate and the CA certificates:
+cat ssl.crt sub.class1.server.ca.pem > /etc/nginx/conf/ssl-unified.crt
+
+Configure your nginx server to use the new key and certificate (in the global settings or a server section):
+listen 443 ssl;
+ssl_certificate /etc/nginx/conf/ssl-unified.crt;
+ssl_certificate_key /etc/nginx/conf/ssl.key;
+
+Tell nginx to reload its configuration:
+nginx -s reload
+
+And you’re done!
