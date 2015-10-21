@@ -18,11 +18,32 @@ from  validations import PhoneValidations
 
 OUR_DOMAIN = "readdress.io"
 
+class BaseHandler(tornado.web.RequestHandler):
+    def validate(self, request):
+        gen_log.info('authenticatepost for ' + request.path)
+        authkey = self.settings['Mandrill_Auth_Key'][request.path].encode()
+        if 'X-Mandrill-Signature' in request.headers:
+          rcvdsignature = request.headers['X-Mandrill-Signature']
+        else:
+          gen_log.info('Invalid post from ' + request.remote_ip)
+          return False
+        data = request.full_url()
+        argkeys = sorted(request.arguments.keys())
+        for arg in argkeys:
+          data += arg
+          for args in self.request.arguments[arg]:
+            data += args.decode()
+        hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
+        asignature = base64.b64encode(hashed.digest()).decode()
+        gen_log.info('rcvdsignature ' + str(rcvdsignature))
+        gen_log.info('asignature ' + str(asignature))
+        return asignature == rcvdsignature
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
 
-class VerifyHandler(tornado.web.RequestHandler):
+class VerifyHandler(BaseHandler):
   @coroutine
   def get(self,sessionid):
     rclient = self.settings['rclient']
@@ -76,33 +97,8 @@ class VerifyHandler(tornado.web.RequestHandler):
     self.render("success.html",reason=reason)
     return
 
-class ValidatePost():
-    def validate(self, request):
-        gen_log.info('authenticatepost for ' + request.path)
-        authkey = self.settings['Mandrill_Auth_Key'][request.path].encode()
-        if 'X-Mandrill-Signature' in request.headers:
-          rcvdsignature = request.headers['X-Mandrill-Signature']
-        else:
-          gen_log.info('Invalid post from ' + request.remote_ip)
-          return False
-        data = request.full_url()
-        argkeys = sorted(request.arguments.keys())
-        for arg in argkeys:
-          data += arg
-          for args in self.request.arguments[arg]:
-            data += args.decode()
-        hashed = hmac.new(authkey,data.encode(),hashlib.sha1)
-        asignature = base64.b64encode(hashed.digest()).decode()
-        gen_log.info('rcvdsignature ' + str(rcvdsignature))
-        gen_log.info('asignature ' + str(asignature))
-        return asignature == rcvdsignature
-
    
-class SignupHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-
+class SignupHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -126,7 +122,7 @@ class SignupHandler(tornado.web.RequestHandler, ValidatePost):
 
   @coroutine
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -228,11 +224,7 @@ class SignupHandler(tornado.web.RequestHandler, ValidatePost):
     return    
 
 
-class DeregisterHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-
+class DeregisterHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -256,7 +248,7 @@ class DeregisterHandler(tornado.web.RequestHandler, ValidatePost):
 
   @coroutine
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -287,11 +279,7 @@ class DeregisterHandler(tornado.web.RequestHandler, ValidatePost):
     return    
 
 
-class ModifyHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-    
+class ModifyHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -315,7 +303,7 @@ class ModifyHandler(tornado.web.RequestHandler, ValidatePost):
 
   @coroutine
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -346,11 +334,7 @@ class ModifyHandler(tornado.web.RequestHandler, ValidatePost):
 
 
 
-class PluscodeHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-
+class PluscodeHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -374,7 +358,7 @@ class PluscodeHandler(tornado.web.RequestHandler, ValidatePost):
 
   @coroutine
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -424,11 +408,7 @@ class PluscodeHandler(tornado.web.RequestHandler, ValidatePost):
       self.finish()
       return
 
-class InviteFriendHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-    
+class InviteFriendHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -478,7 +458,7 @@ class InviteFriendHandler(tornado.web.RequestHandler, ValidatePost):
 
   @coroutine
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -540,11 +520,7 @@ class InviteFriendHandler(tornado.web.RequestHandler, ValidatePost):
     self.finish()
     return
  
-class RecvHandler(tornado.web.RequestHandler, ValidatePost):
-  def authenticatepost(self):
-    gen_log.info('authenticatepost for ' + self.request.path)
-    return super(ValidatePost, self).validate(self.request)
-    
+class RecvHandler(BaseHandler):
   def write_error(self,status_code,**kwargs):
     self.set_status(200)
     self.write({'status': 200})
@@ -552,7 +528,7 @@ class RecvHandler(tornado.web.RequestHandler, ValidatePost):
     return
   
   def post(self):
-    if self.authenticatepost():
+    if self.validate(self.request):
       gen_log.info('post authenticated successfully')
     else:
       gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
@@ -585,6 +561,7 @@ class RecvHandler(tornado.web.RequestHandler, ValidatePost):
       ''' stage 1 do mail archive for all mails '''
 
       ''' Push the entire json to mailhandler thread through redis list'''
+      gen_log.info(str(ev))
       pickledEv = pickle.dumps(ev)
       rclient.lpush('mailhandler', pickledEv)
 
