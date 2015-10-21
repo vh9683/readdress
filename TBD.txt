@@ -1,8 +1,8 @@
 Lanch critical
 2. supervisor integration
 3. iptables update
-4. terms and conditions page / inclusion of same in the template
-5. https - update nginx, mandrill for same
+4. Terms of Service , inclusion of same in the template
+5. Tersm of Service page to be justified.... TOS is working as of now
 
 
 Non critical
