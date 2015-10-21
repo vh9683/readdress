@@ -7,10 +7,6 @@ import pymongo
 
 import validations
 
-def convertDictToJson(data):
-    json_data = json.dumps(data)
-    return json_data
-
 class MongoORM:
     def __init__(self):
         try:
@@ -86,12 +82,10 @@ class MongoORM:
             phValid = 'True'
         
         data['phone_verified'] = phValid
-        json_data = convertDictToJson(data)
 
-        self.getdb().users.insert( json_data )
+        self.getdb().users.insert( data )
 
         del data
-        del json_data
 
         return True
 
@@ -126,11 +120,8 @@ class MongoORM:
         if references:
             data['references'] = references
 
-        json_data = convertDictToJson(data)
-
-        self.getdb().threadMapper.insert( json_data)
+        self.getdb().threadMapper.insert(data)
         del data
-        del json_data
 
         return
 
