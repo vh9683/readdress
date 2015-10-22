@@ -18,6 +18,7 @@ if __name__ == '__main__':
 
     FILESIZE=1024*1024*1024 #1MB
     logger = logging.getLogger('emailarchiver'+instance)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     formatter = logging.Formatter('EMAIL ARCHIVER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
     hdlr = logging.StreamHandler()
     hdlr.setFormatter(formatter)

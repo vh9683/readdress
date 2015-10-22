@@ -563,8 +563,6 @@ if __name__ == '__main__':
     if 'debug' in argsdict and argsdict['debug'] is not None:
         debugfile = argsdict['debug']
         print(debugfile)
-        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
         with open(debugfile, 'r') as f:
             records = json.load(f)
             ev = records[0]
@@ -573,6 +571,7 @@ if __name__ == '__main__':
             emailHandler(ev, pickledEv)
         exit()
 
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
     hdlr = logging.StreamHandler()
     hdlr.setFormatter(formatter)
