@@ -150,7 +150,7 @@ if __name__ == '__main__':
         exit()
 
     formatter = logging.Formatter('MAIL-DEREG-HANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/genbouncemailhandle'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+    hdlr = logging.StreamHandler()
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)
