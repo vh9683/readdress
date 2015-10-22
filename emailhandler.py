@@ -53,6 +53,11 @@ def newmapaddr(a, n=None, setExpiry=None):
 def populate_from_addresses(msg):
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
+    fromdomain = valids.getdomain(fromemail)
+
+    if OUR_DOMAIN == fromdomain:
+        return False, False
+
     mapped, sendInvite2User = newmapaddr(fromemail, fromname, True)
     if not mapped:
         return False, sendInvite2User
@@ -80,7 +85,7 @@ def sendBounceMail (evKey, origmail, userslist):
 
     rclient.lpush('genBounceMailHandle', pickle.dumps( convertDictToJson(data) ) )
     del data
-    return 
+    return
 
 
 def sendInvite (invitesrcpts, fromname):
@@ -88,11 +93,13 @@ def sendInvite (invitesrcpts, fromname):
     if fromname is None:
         fromname = ""
     for mailid in invitesrcpts:
-        user = db.findInviteUsers ( mailid )
-        if not user:
-            user =  db.insertIntoInviteRecipients (mailid)
-            msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
-            rclient.publish('mailer',pickle.dumps(msg))
+        if valids.isregistereduser(mailid):
+            user = db.findInviteUsers ( mailid )
+            if not user:
+                user =  db.insertIntoInviteRecipients (mailid)
+                msg = {'template_name': 'readdressInvite', 'email': mailid,
+                    'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
+                rclient.publish('mailer',pickle.dumps(msg))
 
 def getToAddresses(msg):
     torecipients = list()
@@ -104,7 +111,7 @@ def getToAddresses(msg):
     tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
     actualTo = list()
     for toaddr in tolst:
-        toname,to  = parseaddr(toaddr)
+        toname, to  = parseaddr(toaddr)
         actualTo.append(to)
         if toname is None:
             toname = valids.getuserid(to)
@@ -122,20 +129,17 @@ def getToAddresses(msg):
                     invitercpts.append(maddress)
                 newmapaddr(maddress, toname, True)
                 logger.info("changed address is : {} , {}".format(maddress,toname))
-                to = [maddress, toname]
+                modto = [maddress, toname]
         else:
             mapped = db.getmapped(to)
             if not mapped:
                 invitercpts.append(to)
                 mapped, sendInvite = newmapaddr(to, toname, True)
-                to = [mapped, toname]
+                modto = [mapped, toname]
             else:
-                to = [mapped, toname]
+                modto = [mapped, toname]
 
-            logger.info ("To addrs {}".format(to))
-        logger.info("Toname is : {}".format(toname))
-
-        torecipients.append( to )
+        torecipients.append( modto )
     return torecipients, invitercpts, actualTo
 
 def getCcAddresses(msg):
@@ -165,21 +169,18 @@ def getCcAddresses(msg):
                     invitercpts.append(maddress)
                 newmapaddr(maddress, ccname, True)
                 logger.info("Mapped address is : {}".format(maddress))
-                cc = [maddress, ccname]
+                modcc = [maddress, ccname]
         else:
-            cc = [cc, ccname]
+            #cc = [cc, ccname]
             mapped = db.getmapped(cc)
             if not mapped:
                 invitercpts.append(cc)
                 mapped, sendInvite = newmapaddr(cc, ccname, True)
-                cc = [mapped, ccname]
+                modcc = [mapped, ccname]
             else:
-                cc = [mapped, ccname]
+                modcc = [mapped, ccname]
 
-            logger.info ("cc addrs {}".format(cc))
-        logger.info("ccname is : {}".format(ccname))
-
-        ccrecipients.append(cc)
+        ccrecipients.append(modcc)
     return ccrecipients, invitercpts, actualCc
 
 
@@ -391,6 +392,16 @@ def emailHandler(ev, pickledEv):
       3) check if bcc mail and drop the mail / do some thing
       4) move the completed section to other parts such as li / sendmail or some thing else
   '''
+    fromstring = msg['From']
+    fromname, fromemail = parseaddr(fromstring)
+    fromdomain = valids.getdomain(fromemail)
+    if OUR_DOMAIN == fromdomain:
+        logger.info('Received mail from our doamin ... cannot proceed\n')
+        del origmsg
+        del msg
+        return False
+
+
     allrecipients = []
     totalinvitercpts = []
     torecipients, toinvites, actualTos = getToAddresses(msg)
@@ -407,12 +418,10 @@ def emailHandler(ev, pickledEv):
 
     for mailid in allrecipients:
         logger.info("for loop mail : {} ".format(mailid))
-        user = db.getmapped(mailid[0])
-        if user:
-            if not valids.isregistereduser(user):
-                totalinvitercpts.append(mailid[0])
-        else:
-            totalinvitercpts.append(mailid[0])
+        if not valids.isregistereduser(mailid[0]):
+            user = db.getuser(mailid[0])
+            if user:
+                totalinvitercpts.append(user['actual'])
 
     del msg['To']
     del msg['Cc']
@@ -554,8 +563,6 @@ if __name__ == '__main__':
     if 'debug' in argsdict and argsdict['debug'] is not None:
         debugfile = argsdict['debug']
         print(debugfile)
-        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
         with open(debugfile, 'r') as f:
             records = json.load(f)
             ev = records[0]
@@ -564,8 +571,9 @@ if __name__ == '__main__':
             emailHandler(ev, pickledEv)
         exit()
 
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     formatter = logging.Formatter('MAILHANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/mailhandler_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+    hdlr = logging.StreamHandler()
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)

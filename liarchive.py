@@ -19,8 +19,9 @@ if __name__ == '__main__':
 
     FILESIZE=1024*1024*1024 #1MB
     logger = logging.getLogger('liarchiver'+instance)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     formatter = logging.Formatter('LI ARCHIVER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.handlers.RotatingFileHandler('/var/tmp/liarchiver_'+instance+'.log', maxBytes=FILESIZE, backupCount=10)
+    hdlr = logging.StreamHandler()
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)
