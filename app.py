@@ -119,9 +119,10 @@ class VerifyHandler(BaseHandler):
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': session['actual']})
     if user:
-      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name']}})
+      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified':'False'}})
     else:
-      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name']})
+      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 
+      'phone_verified': 'False'})
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
@@ -412,11 +413,12 @@ class InviteFriendHandler(BaseHandler):
       self.finish()
       return
 
-    from emailhandler import isregistereduser
+    import validations
+    valids = validations.Validations()
     #only registered users can use this facility
     user = yield self.getmapped(from_email)
     gen_log.info("From user mapped {} ".format(user))
-    if not user or not isregistereduser(user):
+    if not user or not valids.isregistereduser(user):
       msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "You haven't signed up yet, please signup to use invite others to readdress.io"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -427,7 +429,7 @@ class InviteFriendHandler(BaseHandler):
       return
 
     frienduser = yield self.getmapped(friendemail)
-    if frienduser and isregistereduser(frienduser):
+    if frienduser and valids.isregistereduser(frienduser):
       msg = {'template_name': 'readdressInviteFailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "User <" + friendemail + "> is already registered with us"}]}
       count = rclient.publish('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
@@ -456,6 +458,7 @@ class RecvHandler(BaseHandler):
 
     rclient = self.settings['rclient']
     ignored =  self.settings ["ignored_in_recv"]
+    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io' ]
 
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
