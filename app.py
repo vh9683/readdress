@@ -27,7 +27,7 @@ class BaseHandler(tornado.web.RequestHandler):
         else:
           gen_log.info('Invalid post from ' + request.remote_ip)
           return False
-        data = request.full_url()
+        data = 'https://' + OUR_DOMAIN + request.path
         argkeys = sorted(request.arguments.keys())
         for arg in argkeys:
           data += arg

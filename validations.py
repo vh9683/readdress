@@ -9,7 +9,6 @@ OUR_DOMAIN = 'readdress.io'
 
 class PhoneValidations:
     def __init__(self, phnumber):
-        self.number = 0
         self.number = phnumber
         self.numberdata = None
         self.error = None
@@ -28,9 +27,11 @@ class PhoneValidations:
         return self.error
 
     def is_number_valid(self):
+        if not self.numberdata:
+            return False
         if not phonenumbers.is_possible_number(self.numberdata) or not phonenumbers.is_valid_number(self.numberdata):
             self.valid = False
-            return self.valid
+        return self.valid
 
     def is_allowed_MCC(self, dbhandle=None):
         dballoc = False
