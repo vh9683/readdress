@@ -6,6 +6,7 @@ import pickle
 import argparse
 import logging
 import logging.handlers
+import sys
 
 import dbops
 

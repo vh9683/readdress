@@ -5,6 +5,7 @@ import datetime
 import logging
 import logging.handlers
 import pickle
+import sys
 
 from redis import StrictRedis
 import dbops
