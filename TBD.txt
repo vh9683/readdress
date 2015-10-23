@@ -1,8 +1,7 @@
 Lanch critical
-2. supervisor integration
-3. iptables update
-4. Terms of Service , inclusion of same in the template
-5. Tersm of Service page to be justified.... TOS is working as of now
+1. iptables update
+2. DB login should have usr and passwd ... not using any as of now
+3. Inclusion of support@readdress.io and contact@readdress.io 
 
 
 Non critical
