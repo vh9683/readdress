@@ -15,6 +15,7 @@ from tornado.gen import coroutine
 from redis import StrictRedis
 from validate_email import validate_email
 from  validations import PhoneValidations
+from tornado.httpclient import AsyncHTTPClient
 
 OUR_DOMAIN = "readdress.io"
 
@@ -496,6 +497,72 @@ class RecvHandler(BaseHandler):
    self.finish()
    return
  
+class VerifyPhoneHandlder(BaseHandler):
+    def get(self, sessionid):
+        rclient = self.settings['rclient']
+        gen_log.info('sessionid ' + str(sessionid))
+        if not sessionid:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        session = rclient.get(sessionid)
+        if not session:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        session = pickle.loads(session)
+        if not session:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        http_client = AsyncHTTPClient()
+        response = yield http_client.fetch("https://cognalys.com/api/v1/otp/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&mobile="+session['phonenum'],raise_error=False)
+        if response.code != 200:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return      
+        resdata = json.loads(response.body.decode())
+        gen_log.info('coganlys auth response data ' + str(resdata))
+        if resdata['status'] != 'success':
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        session['keymatch'] = resdata['keymatch']
+        session['otpstart'] = resdata['otp_start']
+        rclient.setex(sessionid,600,pickle.dumps(session))
+        self.render("verifyphone.html",url="/verifyphone/"+sessionid,ostart=resdata['otp_start'])
+
+    def post(self,sessionid):
+        rclient = self.settings['rclient']
+        gen_log.info('sessionid ' + str(sessionid))
+        if not sessionid:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        session = rclient.get(sessionid)
+        if not session:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        session = pickle.loads(session)
+        if not session:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        inbounddb = self.settings['inbounddb']
+        user = yield inbounddb.users.find_one({'actual': session['actual']})
+        if not user:
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            return
+        otp = self.get_argument('otp','junk')
+        http_client = AsyncHTTPClient()
+        response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
+        if response.code != 200:
+            self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            return
+        resdata = json.loads(response.body.decode())
+        gen_log.info('coganlys verify response data ' + str(resdata))
+        if resdata['status'] != 'success':
+            self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            return
+        yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'phone_verified':'True'}})
+        reason = "Thank You for verifing phone number."
+        self.render("success.html",reason=reason)
+        return
+
+
 logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
@@ -532,6 +599,7 @@ application = tornado.web.Application([
     (r"/inviteafriend", InviteFriendHandler),
     (r"/unsubscribe", DeregisterHandler),
     (r"/changephone", ModifyHandler),
+    (r"/verifyphone/(.*)", VerifyPhoneHandlder),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
 
