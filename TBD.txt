@@ -7,7 +7,6 @@ Lanch critical
 6. suspenssion of account on verification failure
 7. Verification attempts to be recorded in a field in users db
 8. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, do not use genemail for this
-9. replace __ with # for sending mail to non-registered users
 
 
 Non critical
