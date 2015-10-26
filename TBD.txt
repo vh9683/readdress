@@ -1,12 +1,13 @@
 Lanch critical
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
-3. Inclusion of support@readdress.io and contact@readdress.io 
+3. Inclusion of support@readdress.io, feedback@readdress.io and contact@readdress.io 
 4. Verification of phone as discussed.
 5. Capture of signup time in users db
 6. suspenssion of account on verification failure
 7. Verification attempts to be recorded in a field in users db
 8. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, do not use genemail for this
+9. replace __ with # for sending mail to non-registered users
 
 
 Non critical
