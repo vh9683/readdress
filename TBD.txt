@@ -6,6 +6,7 @@ Lanch critical
 5. Capture of signup time in users db
 6. suspenssion of account on verification failure
 7. Verification attempts to be recorded in a field in users db
+8. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, do not use genemail for this
 
 
 Non critical
@@ -14,6 +15,5 @@ Non critical
 1. separate page with signup instructions that can be shortened and given to other websites
 2. Send deregister cancel link for deregister/unsunsbcribe mailid
 3. https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
-4. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, use genemail for this
 5. client only API to retrive plus.code from phone number for integration with registered websites - similar to google sigin
 1. email address for phone to lat lng / plus code conversion : https://github.com/google/open-location-code/
