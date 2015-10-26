@@ -30,9 +30,9 @@ db = dbops.MongoORM()
 valids = validations.Validations()
 
 #below regex objs are for handling new thread mails
-taddrcomp = re.compile('([\w.-]+(__)[\w.-]+)@'+OUR_DOMAIN)
+taddrcomp = re.compile('([\w.-]+(#)[\w.-]+)@'+OUR_DOMAIN)
 
-subcomp = re.compile('__')
+subcomp = re.compile('#')
 
 rclient = StrictRedis()
 
@@ -123,7 +123,7 @@ def getToAddresses(msg):
 
         if mto is not None:
             maddress = subcomp.sub('@', mto.group(1), count=1)
-            if maddress is not None:
+            if maddress is not None and validate_email(maddress):
                 mapped = db.getmapped(maddress)
                 if not mapped:
                     invitercpts.append(maddress)
