@@ -189,6 +189,7 @@ class MongoORM:
             {'phone_verified': 'False'},
             {'verify_count': {'$gt': verification}}
         ]
+        query['$and'] = l
         return self.getdb().users.find(query).limit(numrecords)
 
     def updateUsersSuspendedField(self, a, action):

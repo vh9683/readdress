@@ -77,15 +77,7 @@ def start_suspension(task_name, work_queue):
         #logger.info ('{0} grabbed item for : {1}'.format(task_name, queue_item))
         #yield from asyncio.sleep(0.5)
         #update the verify_count in db
-        verifycount = queue_item.get('verify_count', 0) #default is 0
-        if verifycount <= 3:
-            db.incrementUsersVerifyField(queue_item['actual'], 1)
-            #do some thing heres
-        else:
-            db.updateUsersSuspendedField(queue_item['actual'], 'True')
-            #do not send out mail or send account suspended mail
-            #suspend for 1 hour and then reactivate
-
+        #verifycount = queue_item.get('verify_count', 0) #default is 0
     return True
 
 
