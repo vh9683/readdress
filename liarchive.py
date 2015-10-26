@@ -18,14 +18,11 @@ if __name__ == '__main__':
     instance = argsdict['instance']
 
     FILESIZE=1024*1024*1024 #1MB
-    logger = logging.getLogger('liarchiver'+instance)
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    formatter = logging.Formatter('LI ARCHIVER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.StreamHandler()
-    hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr)
-    logger.setLevel(logging.DEBUG)
+    handler=('LI ARCHIVER-['+instance+']')
+    formatter = ('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=formatter)
 
+    logger = logging.getLogger('liarchiver'+instance)
     rclient = StrictRedis()
 
     liarchivebackup = 'liarchivebackup_'+instance

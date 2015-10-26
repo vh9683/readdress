@@ -563,7 +563,11 @@ class VerifyPhoneHandlder(BaseHandler):
         return
 
 
-logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
+handler='APP'
+formatter=('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format=formatter, stream=sys.stdout)
+gen_log.info("TES")
+#logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
 

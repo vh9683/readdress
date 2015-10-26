@@ -233,11 +233,14 @@ if __name__ == '__main__':
     argsdict = vars(args)
     instance = argsdict['instance']
 
+    handler = ('MAIL-DEREG-HANDLER-['+instance+']')
+    formatter=('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=formatter)
+
     debugfile = ''
     if 'debug' in argsdict and argsdict['debug'] is not None:
         debugfile = argsdict['debug']
         print(debugfile)
-        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
         with open(debugfile, 'r') as f:
             records = json.load(f)
@@ -247,12 +250,6 @@ if __name__ == '__main__':
             emailModifyHandler(ev, pickledEv)
         exit()
 
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    formatter = logging.Formatter('MAIL-DEREG-HANDLER-['+instance+']:%(asctime)s %(levelname)s - %(message)s')
-    hdlr = logging.StreamHandler()
-    hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr)
-    logger.setLevel(logging.DEBUG)
 
     mailModifyhandlerBackUp = 'mailModifyhandler_' + instance
     logger.info("mailModifyhandlerBackUp ListName : {} ".format(mailModifyhandlerBackUp))
