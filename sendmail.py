@@ -9,6 +9,7 @@ import argparse
 import logging
 import logging.handlers
 import sys
+from email.utils import parseaddr
 
 
 '''
@@ -42,10 +43,13 @@ def sendmail(ev, msg, to, logger):
         #    server.login('vidyartibng@gmail.com', 'c3JOgoZZ9BmKN4swnnBEpQ')
 
         logger.info('RCPT : {}'.format(to))
+        fromstring = msg['From']
+        fromname, fromemail = parseaddr(fromstring)
+        logger.info('SENDER : {}'.format(fromemail))
 
         composed = msg.as_string()
         logger.debug('Actual Msg : {}'.format(composed))
-        server.sendmail(ev['msg']['from_email'], to, composed)
+        server.sendmail(fromemail, to, composed)
     finally:
         server.quit()
 

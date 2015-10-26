@@ -526,6 +526,9 @@ def emailHandler(ev, pickledEv):
             del msg['To']
         if 'Cc' in msg:
             del msg['Cc']
+        user = db.getuser(actual)
+        if user:
+            rto.append(email.utils.formataddr((user['name'],user['actual'])))
         logger.info('To: ' + str(rto))
         msg['To'] = ','.join(rto)
         logger.info("Pushing msg to sendmail list {}\n".format(recepient))
