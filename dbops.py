@@ -69,18 +69,21 @@ class MongoORM:
         data = dict()
         data['actual'] = a
         data['mapped'] = m
+        data['verify_count'] = 0
+        data['suspended'] = 'False'
+        data['verify_count'] = 0
 
         if n:
             data['name'] = n
 
-        if setExpiry: 
+        if setExpiry:
             utc_timestamp = datetime.datetime.utcnow()
             data['setExpiry'] = utc_timestamp
 
         phValid = 'False'
         if phoneValidated:
             phValid = 'True'
-        
+
         data['phone_verified'] = phValid
 
         self.getdb().users.insert( data )
@@ -111,7 +114,7 @@ class MongoORM:
     def insertThread(self, msgId, references =None):
         timestamp = datetime.datetime.now()
         utc_timestamp = datetime.datetime.utcnow()
-        
+
         data = dict()
         data['threadId'] =  msgId
         data['date'] =  timestamp
@@ -170,3 +173,32 @@ class MongoORM:
 
     def getMCC(self, mcc):
         return self.getmccdb().find( { mcc :  { '$exists' : 'true' } } )
+
+    def getUsersToBeVerifiedRecords(self, numrecords=50):
+        query = dict()
+        l = [{'phone_verified': 'False'}, {'suspended': 'False'}]
+        query['$or'] = l
+        return self.getdb().users.find(query).limit(numrecords)
+
+    def getUsersToBeSuspended(self,
+                                    query=None,
+                                    numrecords=50,
+                                    verification=3):
+        query = dict()
+        l = [
+            {'phone_verified': 'False'},
+            {'verify_count': {'$gt': verification}}
+        ]
+        return self.getdb().users.find(query).limit(numrecords)
+
+    def updateUsersSuspendedField(self, a, action):
+        self.getdb().users.update( { 'actual': a },  {"$set": {'suspended' : action} } )
+        return
+
+    def incrementUsersVerifyField(self, a, value):
+        self.getdb().users.update( { 'actual': a },  {"$inc": {'verify_count' : value} } )
+        return
+
+    def updatePhoneVerifiedField(seld, a, value):
+        self.getdb().users.update( { 'actual': a },  {"$set": {'phone_verified' : value} } )
+        return

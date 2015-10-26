@@ -120,10 +120,9 @@ class VerifyHandler(BaseHandler):
     inbounddb = self.settings['inbounddb']
     user = yield inbounddb.users.find_one({'actual': session['actual']})
     if user:
-      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified':'False'}})
+      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified':'False', 'suspended':'False'}})
     else:
-      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 
-      'phone_verified': 'False'})
+      yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified': 'False' , 'suspended' : 'False', 'verify_count' : 0} )
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
