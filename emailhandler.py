@@ -36,6 +36,8 @@ taddrcomp = re.compile('([\w.-]+(#)[\w.-]+)@'+readdress_configs.get_ourdomain() 
 subcomp = re.compile('#')
 
 rclient = StrictRedis()
+ps = rclient.pubsub()
+ps.subscribe(['configmodified'])
 
 def newmapaddr(a, n=None, setExpiry=None):
     sendInvite2User = False
@@ -580,6 +582,19 @@ if __name__ == '__main__':
     logger.info("MailHandlerBackUp ListName : {} ".format(mailhandlerBackUp))
 
     while True:
+        #Read config changes only while processing the mesage
+        for item in ps.listen():
+            itype = item['type']
+            if itype == 'message':
+                print ('DATA {}'.format(item['data']) )
+                del readdress_configs
+                print ("REadin configs")
+                readdress_configs = ReConfig()
+                valids.re_readconfig()
+            else:
+                pass
+            break
+
         backupmail = False
         if (rclient.llen(mailhandlerBackUp)):
             evt = rclient.brpop (mailhandlerBackUp)
@@ -601,3 +616,7 @@ if __name__ == '__main__':
                 mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
             rclient.lrem(mailhandlerBackUp, 0, pickledEv)
             logger.info ('len of {} is : {}'.format(mailhandlerBackUp, rclient.llen(mailhandlerBackUp)))
+
+                
+
+

@@ -17,7 +17,6 @@ class ReConfig:
             self.config.read( self.config_file )
         except:
             raise
-
         return
 
     def ConfigSectionMap(self, section):

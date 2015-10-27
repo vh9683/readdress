@@ -23,6 +23,8 @@ logger = logging.getLogger('mailmodifyhandle')
 readdress_configs = ReConfig()
 
 rclient = StrictRedis()
+ps = rclient.pubsub()
+ps.subscribe(['configmodified'])
 
 db = dbops.MongoORM()
 
@@ -243,6 +245,18 @@ if __name__ == '__main__':
     logger.info("mailModifyhandlerBackUp ListName : {} ".format(mailModifyhandlerBackUp))
 
     while True:
+        for item in ps.listen():
+            itype = item['type']
+            if itype == 'message':
+                print ('DATA {}'.format(item['data']) )
+                del readdress_configs
+                print ("REadin configs")
+                readdress_configs = ReConfig()
+                valids.re_readconfig()
+            else:
+                pass
+            break
+
         backupmail = False
         if (rclient.llen(mailModifyhandlerBackUp)):
             evt = rclient.brpop (mailModifyhandlerBackUp)

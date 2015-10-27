@@ -2,6 +2,7 @@
 
 import uuid
 import phonenumbers
+from config import ReConfig
 
 class PhoneValidations:
     def __init__(self, phnumber):
@@ -48,9 +49,13 @@ class PhoneValidations:
 
 class Validations:
     def __init__ (self):
-        from config import ReConfig
         self.config = ReConfig()
-        self.OUR_DOMAIN = ReConfig.ConfigSectionMap('DEFAULT')['OUR_DOMAIN']
+        self.OUR_DOMAIN = self.config.get_ourdomain()
+
+    def re_readconfig(self):
+        del self.config
+        self.config = ReConfig()
+        self.OUR_DOMAIN = self.config.get_ourdomain()
 
     def getdomain(self, a):
         return a.split('@')[-1]

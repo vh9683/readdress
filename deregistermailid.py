@@ -13,7 +13,7 @@ from email.utils import parseaddr
 
 from redis import StrictRedis
 import dbops
-import validations 
+import validations
 
 from  validations import PhoneValidations
 
@@ -30,6 +30,9 @@ db = dbops.MongoORM()
 valids = validations.Validations()
 
 rclient = StrictRedis()
+
+ps = rclient.pubsub()
+ps.subscribe(['configmodified'])
 
 html = """\
 <html>
@@ -68,7 +71,7 @@ def prepareMail (msg, body=None):
         htmlformatted = html.format(body)
         htmlpart = MIMEText(htmlformatted, 'html')
         msg.attach(htmlpart)
- 
+
     msgId = msg.get('Message-ID')
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
@@ -77,7 +80,7 @@ def prepareMail (msg, body=None):
     return actual_frommail
 
 def sendmail( msg, to ):
-    key = uuid.uuid4().hex 
+    key = uuid.uuid4().hex
     rclient.set(key, pickle.dumps((to, msg)))
     rclient.expire(key, readdress_configs.get_sendmail_key_exp_time() )
     msg = None
@@ -194,6 +197,18 @@ if __name__ == '__main__':
     logger.info("mailDeregisterhandlerBackUp ListName : {} ".format(mailDeregisterhandlerBackUp))
 
     while True:
+        for item in ps.listen():
+            itype = item['type']
+            if itype == 'message':
+                print ('DATA {}'.format(item['data']) )
+                del readdress_configs
+                print ("REadin configs")
+                readdress_configs = ReConfig()
+                valids.re_readconfig()
+            else:
+                pass
+            break
+
         backupmail = False
         if (rclient.llen(mailDeregisterhandlerBackUp)):
             evt = rclient.brpop (mailDeregisterhandlerBackUp)
