@@ -26,7 +26,7 @@ UNSET   0
 
 FILESIZE=1024*1024*1024 #1MB
 
-def sendmail(ev, msg, to, logger):
+def sendmail(msg, to, logger):
     ''' function to be optimised '''
     #server = smtplib.SMTP('smtp.mandrillapp.com', 587)
     server = smtplib.SMTP('localhost', 587)
@@ -90,14 +90,14 @@ if __name__ == '__main__':
             #Get the inbound json obj from redis
             logger.info('item is {} '.format(item))
             keys = item.split(',')
-            evKey = keys[1]
-            if rclient.exists(evKey):
-                evpickle = rclient.get(evKey)
-                ev = pickle.loads(evpickle)
-                sendmail(ev, msgtuple[1], msgtuple[0], logger)
-                rclient.delete(evKey)
-            else:
-                pass
+            sendmail(msgtuple[1], msgtuple[0], logger)
+
+            if len(keys) == 2:
+                evKey = keys[1]
+                if evKey and rclient.exists(evKey):
+                    rclient.delete(evKey)
+
+            rclient.delete(item)
         else:
             pass
         #No need to remove from redis .. it will be removed after expiry

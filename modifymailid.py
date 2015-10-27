@@ -29,7 +29,7 @@ db = dbops.MongoORM()
 
 valids = validations.Validations()
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 10*60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 12*60
 SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 html = """\
@@ -53,22 +53,19 @@ bodypart = """\
       Re@address Team
 """
 
+FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
 
-def prepareMail (ev, msg, body=None):
-    frommail = msg['From']
+def prepareMail (msg, body=None):
+    actual_frommail = msg['From']
     del msg['From']
 
     del msg['To']
 
-    msg['To'] = frommail
-    msg['From'] = 'noreply@readdress.io'
-
-    #fromname, fromemail = parseaddr(tomail)
-    ev['msg']['from_email'] = 'noreply@readdress.io'
+    msg['To'] = actual_frommail
+    msg['From'] = FromEMail
 
     logger.info ("From mail : {} ".format(msg['From']))
     logger.info ("To mail : {} ".format(msg['To']))
-    logger.info ("from_email mail : {} ".format(ev['msg']['from_email']))
 
     if body:
         text = bodypart.format(body)
@@ -82,18 +79,12 @@ def prepareMail (ev, msg, body=None):
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
 
-    msg.add_header('reply-to', 'noreply@readdress.io')
+    msg.add_header('reply-to', FromEMail)
 
-    pickledEv = pickle.dumps(ev)
+    return actual_frommail
 
-    evKey =  uuid.uuid4().hex
-    rclient.set(evKey, pickledEv)
-    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
-
-    return evKey, frommail
-
-def sendmail( evKey, msg, to ):
-    key = uuid.uuid4().hex + ',' + evKey
+def sendmail( msg, to ):
+    key = uuid.uuid4().hex 
     rclient.set(key, pickle.dumps((to, msg)))
     rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     msg = None
@@ -129,28 +120,28 @@ def emailModifyHandler(ev, pickledEv):
     duser = db.findDeregistedUser( from_email  )
     if duser:
         text = "Phone number is already de-registered with us."
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     phvalids = PhoneValidations(oldphonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_allowed_MCC(db):
         text = " This Service is not available in your Country as of now. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     del phvalids
@@ -162,53 +153,53 @@ def emailModifyHandler(ev, pickledEv):
     logger.info("oldphoneuser {}".format(oldphoneuser))
     if not user or not oldphoneuser:
         text = "Old Phone number given is not registered with us, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not valids.isregistereduser(user['mapped']):
         text = "Old Phone number given is not valid, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+OUR_DOMAIN):
         text = " Your email id and old phone number does not match, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if user['mapped'] != oldphoneuser['mapped']:
         text = "You are not allowed to change this phone number, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     phvalids = PhoneValidations(newphonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_allowed_MCC():
         text = " This Service is not available in your Country as of now. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     newphoneuser = db.getuser(newphonenum[1:]+'@'+OUR_DOMAIN)
     if newphoneuser and valids.isregistereduser(newphoneuser['mapped']):
         text = "New Phone number given is already registered with us, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
     
     db.updateMapped (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN))
@@ -217,9 +208,9 @@ def emailModifyHandler(ev, pickledEv):
 
     text = "Your alias is changed to {}\n".format(newphonenum[1:]+'@'+OUR_DOMAIN)
 
-    evKey, recepient = prepareMail (ev, msg, text)
+    recepient = prepareMail (msg, text)
 
-    sendmail(evKey, msg, recepient)
+    sendmail(msg, recepient)
 
     del msg
     return True

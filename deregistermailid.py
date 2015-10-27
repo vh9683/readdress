@@ -33,7 +33,7 @@ OUR_DOMAIN = 'readdress.io'
 
 rclient = StrictRedis()
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 15*60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 12*60
 SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 html = """\
@@ -57,18 +57,15 @@ bodypart = """\
       Re@address Team
 """
 
-def prepareMail (ev, msg, body=None):
-    frommail = msg['From']
-    del msg['From']
+FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
 
-    tomail = msg['To']
+def prepareMail (msg, body=None):
+    actual_frommail = msg['From']
+    del msg['From']
     del msg['To']
 
-    msg['To'] = frommail
-    msg['From'] = tomail
-
-    fromname, fromemail = parseaddr(tomail)
-    ev['msg']['from_email'] = fromemail
+    msg['To'] = actual_frommail
+    msg['From'] = FromEMail
 
     if body:
         text = bodypart.format(body)
@@ -82,18 +79,12 @@ def prepareMail (ev, msg, body=None):
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
 
-    msg.add_header('reply-to', 'noreply@readdress.io')
+    msg.add_header('reply-to', FromEMail)
 
-    pickledEv = pickle.dumps(ev)
+    return actual_frommail
 
-    evKey =  uuid.uuid4().hex
-    rclient.set(evKey, pickledEv)
-    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
-
-    return evKey, frommail
-
-def sendmail( evKey, msg, to ):
-    key = uuid.uuid4().hex + ',' + evKey
+def sendmail( msg, to ):
+    key = uuid.uuid4().hex 
     rclient.set(key, pickle.dumps((to, msg)))
     rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     msg = None
@@ -104,7 +95,7 @@ def sendmail( evKey, msg, to ):
     return
 
 
-def emailDeregisterHandler(ev, pickledEv):
+def emailDeregisterHandler(ev):
     ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
     '''
@@ -124,28 +115,28 @@ def emailDeregisterHandler(ev, pickledEv):
     duser = db.findDeregistedUser( from_email )
     if duser:
         text = "Phone number is already de-registered with us."
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     phvalids = PhoneValidations(phonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_number_valid():
         text = "Invalid phone number given, please check and retry with correct phone number. \n"
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not phvalids.is_allowed_MCC(db):
         text = " This Service is not available in your Country as of now. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     user = db.getuser(from_email)
@@ -153,8 +144,8 @@ def emailDeregisterHandler(ev, pickledEv):
     phoneuser = db.getuser(phonenum[1:]+'@'+OUR_DOMAIN)
     if not user or not phoneuser:
         text = "Phone number given is not registered with us, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     if not valids.isregistereduser(user['mapped']):
@@ -163,15 +154,15 @@ def emailDeregisterHandler(ev, pickledEv):
 
     if user['actual'] != from_email or user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN):
         text = " You have not registered with this phone number, please check and retry. \n "
-        evKey, recepient = prepareMail (ev, msg, text)
-        sendmail(evKey, msg, recepient)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
         return True
 
     text = "Your alias will be unsibscribed in 24 hours. \n"
 
-    evKey, recepient = prepareMail (ev, msg, text)
+    recepient = prepareMail (msg, text)
 
-    sendmail(evKey, msg, recepient)
+    sendmail(msg, recepient)
 
     db.updateExpAndInsertDeregUser( user )
 
@@ -201,8 +192,8 @@ if __name__ == '__main__':
             records = json.load(f)
             ev = records[0]
             f.close()
-            pickledEv = pickle.dumps(ev)
-            emailDeregisterHandler(ev, pickledEv)
+            #pickledEv = pickle.dumps(ev)
+            emailDeregisterHandler(ev)
         exit()
 
 
@@ -223,7 +214,7 @@ if __name__ == '__main__':
             logger.info("Getting events from {}".format('mailDeregisterhandler'))
 
         #mail handler
-        emailDeregisterHandler(ev, pickledEv)
+        emailDeregisterHandler(ev)
 
         if(not backupmail):
             logger.info('len of {} is : {}'.format(

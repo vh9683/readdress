@@ -8,6 +8,7 @@ import pickle
 import sys
 import uuid
 from email.mime.text import MIMEText
+import email.utils
 
 from redis import StrictRedis
 
@@ -27,7 +28,7 @@ OUR_DOMAIN = 'readdress.io'
 
 rclient = StrictRedis()
 
-REDIS_MAIL_DUMP_EXPIRY_TIME = 15*60
+REDIS_MAIL_DUMP_EXPIRY_TIME = 12*60
 
 SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
@@ -52,21 +53,15 @@ bodypart = """\
       Re@address Team
 """
 
-def prepareMail (evKey, msg, body=None):
-    frommail = msg['From']
+FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
+
+def prepareMail (msg, body=None):
+    actual_frommail = msg['From']
     del msg['From']
     del msg['To']
 
-    msg['To'] = frommail
-    fromemail =  'noreply@readdress.io'
-    msg['From'] = fromemail
-
-    pickledEv = rclient.get(evKey)
-    if not pickledEv:
-        raise ValueError("invalid evkey value {}".format( str(evKey)) )
-
-    ev = pickle.loads(pickledEv)
-    ev['msg']['from_email'] = fromemail
+    msg['To'] = actual_frommail
+    msg['From'] = FromEMail
 
     if body:
         text = bodypart.format(body)
@@ -79,18 +74,12 @@ def prepareMail (evKey, msg, body=None):
     msgId = msg.get('Message-ID')
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
-    msg.add_header('reply-to', fromemail)
+    msg.add_header('reply-to', FromEMail)
 
-    pickledEv = pickle.dumps(ev)
+    return actual_frommail
 
-    evKey =  uuid.uuid4().hex
-    rclient.set(evKey, pickledEv)
-    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
-
-    return evKey, frommail
-
-def sendmail( evKey, msg, to ):
-    key = uuid.uuid4().hex + ',' + evKey
+def sendmail( msg, to ):
+    key = uuid.uuid4().hex 
     rclient.set(key, pickle.dumps((to, msg)))
     rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
     msg = None
@@ -106,7 +95,6 @@ def genBounceEmail_handler(jsond):
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
     '''
     msg = jsond['origmail']
-    evKey = jsond['evKey']
     userslist = jsond['userslist']
 
     subject = msg['Subject']
@@ -117,9 +105,9 @@ def genBounceEmail_handler(jsond):
     text = """Your mail could not be sent to these foillowing ids  {} \n 
               Reason : They have deregistered from our services\n""".format(", ".join(userslist))
 
-    evKey, recepient = prepareMail (evKey, msg, text)
+    recepient = prepareMail (msg, text)
 
-    sendmail(evKey, msg, recepient)
+    sendmail(msg, recepient)
 
     del msg
     del jsond
@@ -163,7 +151,6 @@ if __name__ == '__main__':
             backupmail = True
             pickledData = evt[1]
             jsond = pickle.loads(pickledData)
-            #pickledEv = pickle.dumps(ev)
             logger.info("Getting events from {}".format(genBounceMailHandleBackUp))
         else:
             pickledData = rclient.brpoplpush('genBounceMailHandle', genBounceMailHandleBackUp)

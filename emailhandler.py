@@ -498,7 +498,6 @@ def emailHandler(ev, pickledEv):
 
     ''' msg will have Message-ID In-ReplyTo and References '''
     evKey =  uuid.uuid4().hex
-    #rclient.set(evKey, pickle.dumps(ev))
     rclient.set(evKey, pickledEv)
     ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
     ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
