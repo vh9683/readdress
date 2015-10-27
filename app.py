@@ -131,10 +131,9 @@ class VerifyHandler(BaseHandler):
     rclient.delete(sessionid)
     self.set_status(200)
     reason = "Verificaton Sucessful. You can now use " + session['mapped'] + " as email id."
-    msg = {'template_name': 'readdresswelcome', 'email': session['actual'], 'global_merge_vars': [{'name': 'name', 'content': session['name']},{'name': 'id', 'content': session['mapped']}]}
-    count = rclient.publish('mailer',pickle.dumps(msg))
+    msg = {'template_name': 'readdresswelcome', 'email': session['actual'], 'global_merge_vars': {'name': session['name'],'id': session['mapped']}}
+    rclient.lpush('mailer', pickle.dumps(msg))
     gen_log.info('message ' + str(msg))
-    gen_log.info('message published to ' + str(count))
     self.render("success.html",reason=reason)
     return
 
@@ -234,10 +233,9 @@ class SignupHandler(BaseHandler):
     sessionid = uuid.uuid4().hex
     rclient = self.settings['rclient']
     rclient.setex(sessionid,600,pickle.dumps(session))
-    msg = {'template_name': 'readdrsignup', 'email': from_email, 'global_merge_vars': [{'name': 'sessionid', 'content': sessionid}]}
-    count = rclient.publish('mailer',pickle.dumps(msg))
+    msg = {'template_name': 'readdrsignup', 'email': from_email, 'global_merge_vars': {'sessionid': sessionid}}
+    rclient.lpush('mailer',pickle.dumps(msg))
     gen_log.info('message ' + str(msg))
-    gen_log.info('message published to ' + str(count))
     self.set_status(200)
     self.write({'status': 200})
     self.finish()
@@ -337,29 +335,26 @@ class PluscodeHandler(BaseHandler):
     user = yield self.getuser(from_email)
     if user:
       if not pluscodes.isFull(pluscode):
-          msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, provide correct plus+code"}]}
-          count = rclient.publish('mailer',pickle.dumps(msg))
+          msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': {'outcome': "failed, provide correct plus+code"}}
+          rclient.lpush('mailer',pickle.dumps(msg))
           gen_log.info('message ' + str(msg))
-          gen_log.info('message published to ' + str(count))
           self.set_status(200)
           self.write({'status': 200})
           self.finish()
           return
       inbounddb = self.settings['inbounddb']
       yield inbounddb.users.update({'actual': from_email},{'$set': {'pluscode': pluscode}})
-      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "succeeded, do keep it updated"}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
+      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': {'outcome': "succeeded, do keep it updated"}}
+      rclient.lpush('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
       self.set_status(200)
       self.write({'status': 200})
       self.finish()
       return
     else:
-      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': [{'name': 'outcome', 'content': "failed, you haven't signed up yet, provide your correct plus+code during signup"}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
+      msg = {'template_name': 'readdresspluscode', 'email': from_email, 'global_merge_vars': {'outcome': "failed, you haven't signed up yet, provide your correct plus+code during signup"}}
+      rclient.lpush('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
       self.set_status(200)
       self.write({'status': 200})
       self.finish()
@@ -377,10 +372,9 @@ class InviteFriendHandler(BaseHandler):
     if not user:
       utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
       user = yield inbounddb.invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
-      msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
+      msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': {'friend': fromname}}
+      rclient.lpush('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
     else:
       gen_log.info('Invitation already sent to {}, resending cannot be done until expiry'.format(mailid))
     return
