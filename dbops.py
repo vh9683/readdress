@@ -203,3 +203,7 @@ class MongoORM:
     def updatePhoneVerifiedField(seld, a, value):
         self.getdb().users.update( { 'actual': a },  {"$set": {'phone_verified' : value} } )
         return
+
+    def re_readconfig(self):
+        self.valids.re_readconfig()
+        return
