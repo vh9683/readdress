@@ -3,10 +3,6 @@
 import uuid
 import phonenumbers
 
-OUR_DOMAIN = 'readdress.io'
-
-#allowedcountries = [91,61,1]
-
 class PhoneValidations:
     def __init__(self, phnumber):
         self.number = phnumber
@@ -51,6 +47,11 @@ class PhoneValidations:
 
 
 class Validations:
+    def __init__ (self):
+        from config import ReConfig
+        self.config = ReConfig()
+        self.OUR_DOMAIN = ReConfig.ConfigSectionMap('DEFAULT')['OUR_DOMAIN']
+
     def getdomain(self, a):
         return a.split('@')[-1]
 
@@ -58,7 +59,7 @@ class Validations:
         return a.split('@')[0]
 
     def isourdomain(self, a):
-        return self.getdomain(a) == OUR_DOMAIN
+        return self.getdomain(a) == self.OUR_DOMAIN
 
     def valid_uuid4(self, a):
         userid = self.getuserid(a)

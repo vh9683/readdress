@@ -14,14 +14,15 @@ from email.utils import parseaddr
 
 from redis import StrictRedis
 from validate_email import validate_email
+from config import ReConfig
 
 import dbops
 import validations
 
-FILESIZE=1024*1024*1024 #1MB
 instance = "0"
 logger = logging.getLogger('mailHandler')
-OUR_DOMAIN = 'readdress.io'
+
+readdress_configs = ReConfig()
 
 #class for all db operations using mongodb
 db = dbops.MongoORM()
@@ -30,21 +31,18 @@ db = dbops.MongoORM()
 valids = validations.Validations()
 
 #below regex objs are for handling new thread mails
-taddrcomp = re.compile('([\w.-]+(#)[\w.-]+)@'+OUR_DOMAIN)
+taddrcomp = re.compile('([\w.-]+(#)[\w.-]+)@'+readdress_configs.get_ourdomain() )
 
 subcomp = re.compile('#')
 
 rclient = StrictRedis()
-
-REDIS_MAIL_DUMP_EXPIRY_TIME = 15*60
-SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 def newmapaddr(a, n=None, setExpiry=None):
     sendInvite2User = False
     mapped = db.getmapped(a)
     if not mapped:
         ''' better to add ttl for this address '''
-        mapped = uuid.uuid4().hex+'@'+OUR_DOMAIN
+        mapped = uuid.uuid4().hex+'@'+readdress_configs.get_ourdomain() 
         db.insertUser( a, mapped, n , setExpiry)
         logger.info('insterted new ext user ' + a + ' -> ' + mapped)
         sendInvite2User = True
@@ -55,7 +53,7 @@ def populate_from_addresses(msg):
     fromname, fromemail = parseaddr(fromstring)
     fromdomain = valids.getdomain(fromemail)
 
-    if OUR_DOMAIN == fromdomain:
+    if readdress_configs.get_ourdomain()  == fromdomain:
         return False, False
 
     mapped, sendInvite2User = newmapaddr(fromemail, fromname, True)
@@ -307,7 +305,7 @@ def mapaddrlist(li):
 def sendmail( evKey, msg, to ):
     key = uuid.uuid4().hex + ',' + evKey
     rclient.set(key, pickle.dumps((to, msg)))
-    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
+    rclient.expire(key, readdress_configs.get_sendmail_key_exp_time())
     ''' mark key to exipre after 15 secs'''
     msg = None
     key = key.encode()
@@ -395,7 +393,7 @@ def emailHandler(ev, pickledEv):
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
     fromdomain = valids.getdomain(fromemail)
-    if OUR_DOMAIN == fromdomain:
+    if readdress_configs.get_ourdomain()  == fromdomain:
         logger.info('Received mail from our doamin ... cannot proceed\n')
         del origmsg
         del msg
@@ -501,7 +499,7 @@ def emailHandler(ev, pickledEv):
     rclient.set(evKey, pickledEv)
     ''' mark key to exipre after REDIS_MAIL_DUMP_EXPIRY_TIME secs '''
     ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
-    rclient.expire(evKey, REDIS_MAIL_DUMP_EXPIRY_TIME)
+    rclient.expire(evKey, readdress_configs.get_redis_mail_dump_exp_time() )
     logger.info("All recipients {}".format(allrecipients))
     deregusers = list()
     for mailid in allrecipients:

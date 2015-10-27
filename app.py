@@ -16,8 +16,13 @@ from redis import StrictRedis
 from validate_email import validate_email
 from  validations import PhoneValidations
 from tornado.httpclient import AsyncHTTPClient
+from config import ReConfig
 
-OUR_DOMAIN = "readdress.io"
+readdress_configs = ReConfig()
+#default_configs = readdress_configs.ConfigSectionMap('DEFAULT')
+OUR_DOMAIN = readdress_configs.get_ourdomain()
+if OUR_DOMAIN is None:
+    raise ValueError("OUR_DOMAIN Not configured")
 
 class BaseHandler(tornado.web.RequestHandler):
     def validate(self, request):
@@ -565,7 +570,7 @@ class VerifyPhoneHandlder(BaseHandler):
 handler='APP'
 formatter=('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
 logging.basicConfig(level=logging.DEBUG, format=formatter, stream=sys.stdout)
-gen_log.info("TES")
+gen_log.info("Starting APP")
 #logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
@@ -591,6 +596,9 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/changephone": "AFpsYX7y1GJ67vakDqoxpA"},
              "ignored_in_recv" : ignoredmails,
 }
+
+
+
 
 application = tornado.web.Application([
     (r"/", MainHandler),

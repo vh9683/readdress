@@ -16,21 +16,17 @@ import dbops
 import validations
 from  validations import PhoneValidations
 
-FILESIZE=1024*1024*1024 #1MB
 instance = "0"
 
 logger = logging.getLogger('mailmodifyhandle')
 
-OUR_DOMAIN = 'readdress.io'
+readdress_configs = ReConfig()
 
 rclient = StrictRedis()
 
 db = dbops.MongoORM()
 
 valids = validations.Validations()
-
-REDIS_MAIL_DUMP_EXPIRY_TIME = 12*60
-SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
 
 html = """\
 <html>
@@ -53,7 +49,7 @@ bodypart = """\
       Re@address Team
 """
 
-FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
+#FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
 
 def prepareMail (msg, body=None):
     actual_frommail = msg['From']
@@ -61,6 +57,7 @@ def prepareMail (msg, body=None):
 
     del msg['To']
 
+    FromEMail = readdress_configs.get_formatted_noreply()
     msg['To'] = actual_frommail
     msg['From'] = FromEMail
 
@@ -79,14 +76,14 @@ def prepareMail (msg, body=None):
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
 
-    msg.add_header('reply-to', FromEMail)
+    msg.add_header('reply-to', readdress_configs.get_noreply_mailid())
 
     return actual_frommail
 
 def sendmail( msg, to ):
     key = uuid.uuid4().hex 
     rclient.set(key, pickle.dumps((to, msg)))
-    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
+    rclient.expire(key, readdress_configs.get_sendmail_key_exp_time() )
     msg = None
     ''' mark key to exipre after 15 secs'''
     key = key.encode()

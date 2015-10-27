@@ -24,8 +24,6 @@ DEBUG   10
 UNSET   0
 '''
 
-FILESIZE=1024*1024*1024 #1MB
-
 def sendmail(msg, to, logger):
     ''' function to be optimised '''
     #server = smtplib.SMTP('smtp.mandrillapp.com', 587)
@@ -59,8 +57,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     argsdict = vars(args)
     instance = argsdict['instance']
-
-    FILESIZE=1024*1024*1024 #1MB
 
     handler =('MailSender-['+instance+']')
     formatter=('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
