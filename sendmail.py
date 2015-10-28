@@ -54,6 +54,7 @@ def sendmail(msg, to, logger):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MailSender .')
     parser.add_argument('-i','--instance', help='Instance Num of this script ', required=True)
+    parser.add_argument( '-d', '--debug', help=' optional email dump file', required=False)
     args = parser.parse_args()
     argsdict = vars(args)
     instance = argsdict['instance']
@@ -65,6 +66,10 @@ if __name__ == '__main__':
 
     rclient = StrictRedis()
 
+    if 'debug' in argsdict and argsdict['debug'] is not None:
+        logger.info("Loegger testing\n")
+        exit()
+     
     sendmailbackup = 'sendmailbackup_'+instance
     while True:
         backmail = False
