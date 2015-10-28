@@ -494,8 +494,6 @@ def emailHandler(ev, pickledEv):
     del jpickle
 
 
-    #msg['X-MC-PreserveRecipients'] = 'true'
-
     ''' msg will have Message-ID In-ReplyTo and References '''
     evKey =  uuid.uuid4().hex
     rclient.set(evKey, pickledEv)
