@@ -38,6 +38,15 @@ class ReConfig:
     def get_sendmail_key_exp_time(self):
         return int (self.config.defaults().get('SENDMAIL_KEY_EXPIRE_TIME', '300') )
 
+    def get_verification_expire_time_secs(self):
+        hrs = int (self.config.defaults().get('VERIFICATION_MAIL_EXP_TIME_IN_HRS', '20') )
+        seconds = hrs * 60 * 60
+        return seconds
+
+    def get_verification_expire_time_hours(self):
+        hrs = int (self.config.defaults().get('VERIFICATION_MAIL_EXP_TIME_IN_HRS', '20') )
+        return hrs
+
     def get_noreply_name(self):
         return self.config.defaults().get('NOREPLY_NAME', None)
 

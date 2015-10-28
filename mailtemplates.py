@@ -24,10 +24,43 @@ readdresswelcome = """<h3>Hi {{name}},</h3>
 <h5>Warm Regards<br>Readdress.io</h5>"""
 
 
+verifyPhoneTemplate = """<h3>Readdress Phone Verification Mail</h3>
+<h4>Click on the below link and follow instructions to complete phone number verification</h4>
+<h4>https://readdress.io/verifyphone/{{sessionid}}</h4>
 
-mailtemplates = {'readdrsignup': { 'subject': 'Verify to Get Started', 'template': readdrsignup, 'from_email': 'Readdress.io <noreply@readdress.io>'},
-                 'readdressinvite': { 'subject': 'Check out exciting features on readdress.io', 'template': readdressinvite, 'from_email': 'Readdress.io <noreply@readdress.io>'},
-                 'readdresspluscode': { 'subject': 'Plus+Code Update', 'template': readdresspluscode, 'from_email': 'Readdress.io <noreply@readdress.io>'},
-                 'readdresswelcome': { 'subject': 'Welcome to Readdress.io', 'template': readdresswelcome, 'from_email': 'Readdress.io <noreply@readdress.io>'},
+<h5>note: The above link is valid only till {{validity_time}} and for one time use only. Please do not forward this to anyone.</h5>
+
+<h5>You have received this mail as you have signed up with readdress.io, If you haven't signedup with readdress.io, please ignore this and may be it is a good idea to change password of your email service</h5>"""
+
+verifyPhoneTemplate_lastAttempt = """<h3>Readdress Phone Verification Mail Final Reminder</h3>
+<h4>Click on the below link and follow instructions to complete phone number verification</h4>
+<h4>https://readdress.io/verifyphone/{{sessionid}}</h4>
+
+<h5>note: The above link is valid only till {{validity_time}} and for one time use only. Please do not forward this to anyone.</h5>
+<h5>This is final reminder to verify your phone number, if not verified with in {{validity_time}} your readdress.io account will be suspended</h5>
+
+<h5>You have received this mail as you have signed up with readdress.io, If you haven't signedup with readdress.io, please ignore this and may be it is a good idea to change password of your email service</h5>"""
+
+suspendUserTemplate = """<h3>Your Readdress has been suspended</h3>
+<h4>Your mobile phone number has not been verified so your account has been suspended</h4>
+<h5>You have received this mail as you have signed up with readdress.io, If you haven't signedup with readdress.io, please ignore this and may be it is a good idea to change password of your email service</h5>"""
+
+
+
+mailtemplates = {'readdrsignup': { 'subject': 'Verify to Get Started', 'template': readdrsignup, 'from_email': 'noreply'},
+                 'readdressinvite': { 'subject': 'Check out exciting features on readdress.io', 'template': readdressinvite, 'from_email': 'noreply'},
+                 'readdresspluscode': { 'subject': 'Plus+Code Update', 'template': readdresspluscode, 'from_email': 'noreply'},
+                 'readdresswelcome': { 'subject': 'Welcome to Readdress.io', 'template': readdresswelcome, 'from_email': 'noreply'},
+
+                 'verifyPhoneTemplate' : { 
+                    'subject':'Readdress.io: Verify your phone number for continued service', 
+                    'template': verifyPhoneTemplate, 'from_email' : 'noreply' } , 
+
+                 'verifyPhoneTemplate_lastAttempt' : { 
+                    'subject':'Readdress.io Final Reminder: Verify your phone number for continued service', 
+                    'template': verifyPhoneTemplate_lastAttempt, 'from_email' : 'noreply' },
+
+                  'suspendUserTemplate' : {
+                        'subject' : 'Reassress.io account suspended',
+                        'template' : suspendUserTemplate, 'from_email' : 'noreply' },
 }
-

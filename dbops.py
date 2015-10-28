@@ -200,6 +200,10 @@ class MongoORM:
         self.getdb().users.update( { 'actual': a },  {"$inc": {'verify_count' : value} } )
         return
 
+    def setUsersVerifyField(self, a, value):
+        self.getdb().users.update( { 'actual': a },  {"$set": {'verify_count' : value} } )
+        return
+
     def updatePhoneVerifiedField(seld, a, value):
         self.getdb().users.update( { 'actual': a },  {"$set": {'phone_verified' : value} } )
         return

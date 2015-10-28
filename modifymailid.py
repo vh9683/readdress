@@ -14,7 +14,8 @@ from redis import StrictRedis
 
 import dbops
 import validations
-from  validations import PhoneValidations
+from config import ReConfig
+from validations import PhoneValidations
 
 instance = "0"
 
@@ -147,8 +148,8 @@ def emailModifyHandler(ev, pickledEv):
     phvalids = None
 
     logger.info ("USER {}".format(user))
-    logger.info( "OLD PHONE NUM : {} ".format(oldphonenum[1:]+'@'+OUR_DOMAIN) )
-    oldphoneuser = db.getuser(oldphonenum[1:]+'@'+OUR_DOMAIN)
+    logger.info( "OLD PHONE NUM : {} ".format(oldphonenum[1:]+'@'+readdress_configs.get_ourdomain()) )
+    oldphoneuser = db.getuser(oldphonenum[1:]+'@'+readdress_configs.get_ourdomain())
     logger.info("oldphoneuser {}".format(oldphoneuser))
     if not user or not oldphoneuser:
         text = "Old Phone number given is not registered with us, please check and retry. \n "
@@ -162,7 +163,7 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(msg, recepient)
         return True
 
-    if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+OUR_DOMAIN):
+    if user['actual'] != from_email or user['mapped'] != (oldphonenum[1:]+'@'+readdress_configs.get_ourdomain()):
         text = " Your email id and old phone number does not match, please check and retry. \n "
         recepient = prepareMail (msg, text)
         sendmail(msg, recepient)
@@ -194,18 +195,18 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(msg, recepient)
         return True
 
-    newphoneuser = db.getuser(newphonenum[1:]+'@'+OUR_DOMAIN)
+    newphoneuser = db.getuser(newphonenum[1:]+'@'+readdress_configs.get_ourdomain())
     if newphoneuser and valids.isregistereduser(newphoneuser['mapped']):
         text = "New Phone number given is already registered with us, please check and retry. \n "
         recepient = prepareMail (msg, text)
         sendmail(msg, recepient)
         return True
     
-    db.updateMapped (user['actual'], (newphonenum[1:]+'@'+OUR_DOMAIN))
+    db.updateMapped (user['actual'], (newphonenum[1:]+'@'+readdress_configs.get_ourdomain()))
     
     # add modification collections ... its needed for premium customers
 
-    text = "Your alias is changed to {}\n".format(newphonenum[1:]+'@'+OUR_DOMAIN)
+    text = "Your alias is changed to {}\n".format(newphonenum[1:]+'@'+readdress_configs.get_ourdomain())
 
     recepient = prepareMail (msg, text)
 
@@ -248,9 +249,7 @@ if __name__ == '__main__':
         for item in ps.listen():
             itype = item['type']
             if itype == 'message':
-                print ('DATA {}'.format(item['data']) )
                 del readdress_configs
-                print ("REadin configs")
                 readdress_configs = ReConfig()
                 valids.re_readconfig()
             else:

@@ -9,13 +9,13 @@ import pickle
 import sys
 import uuid
 from email.mime.text import MIMEText
-from email.utils import parseaddr
 
 from redis import StrictRedis
+
 import dbops
 import validations
-
-from  validations import PhoneValidations
+from config import ReConfig
+from validations import PhoneValidations
 
 instance = "0"
 
@@ -200,9 +200,7 @@ if __name__ == '__main__':
         for item in ps.listen():
             itype = item['type']
             if itype == 'message':
-                print ('DATA {}'.format(item['data']) )
                 del readdress_configs
-                print ("REadin configs")
                 readdress_configs = ReConfig()
                 valids.re_readconfig()
             else:
