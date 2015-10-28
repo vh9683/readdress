@@ -8,29 +8,19 @@ import pickle
 import sys
 import uuid
 from email.mime.text import MIMEText
-import email.utils
 
 from redis import StrictRedis
 
-FILESIZE=1024*1024*1024 #1MB
+from config import ReConfig
+
 instance = "0"
 
 logger = logging.getLogger('genbouncemailhandle')
 
-#class for all db operations using mongodb
-#db = dbops.MongoORM()
-
-#instanttiate class for common validations
-#valids = validations.Validations()
-
-
-OUR_DOMAIN = 'readdress.io'
-
+readdress_configs = ReConfig()
 rclient = StrictRedis()
-
-REDIS_MAIL_DUMP_EXPIRY_TIME = 12*60
-
-SENDMAIL_KEY_EXPIRE_TIME = 10 * 60
+ps = rclient.pubsub()
+ps.subscribe(['configmodified'])
 
 html = """\
 <html>
@@ -53,13 +43,14 @@ bodypart = """\
       Re@address Team
 """
 
-FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
+#FromEMail = email.utils.formataddr(( 'Re@Address' , 'noreply@readdress.io' ) )
 
 def prepareMail (msg, body=None):
     actual_frommail = msg['From']
     del msg['From']
     del msg['To']
 
+    FromEMail = readdress_configs.get_formatted_noreply()
     msg['To'] = actual_frommail
     msg['From'] = FromEMail
 
@@ -70,18 +61,18 @@ def prepareMail (msg, body=None):
         htmlformatted = html.format(body)
         htmlpart = MIMEText(htmlformatted, 'html')
         msg.attach(htmlpart)
- 
+
     msgId = msg.get('Message-ID')
     msg.add_header("In-Reply-To", msgId)
     msg.get('References', msgId)
-    msg.add_header('reply-to', FromEMail)
+    msg.add_header('reply-to', readdress_configs.get_noreply_mailid())
 
     return actual_frommail
 
 def sendmail( msg, to ):
-    key = uuid.uuid4().hex 
+    key = uuid.uuid4().hex
     rclient.set(key, pickle.dumps((to, msg)))
-    rclient.expire(key, SENDMAIL_KEY_EXPIRE_TIME)
+    rclient.expire(key, readdress_configs.get_sendmail_key_exp_time())
     msg = None
     ''' mark key to exipre after 15 secs'''
     key = key.encode()
@@ -145,6 +136,15 @@ if __name__ == '__main__':
     logger.info("genBounceMailHandleBackUp ListName : {} ".format(genBounceMailHandleBackUp))
 
     while True:
+        for item in ps.listen():
+            itype = item['type']
+            if itype == 'message':
+                del readdress_configs
+                readdress_configs = ReConfig()
+            else:
+                pass
+            break
+
         backupmail = False
         if (rclient.llen(genBounceMailHandleBackUp)):
             evt = rclient.brpop (genBounceMailHandleBackUp)

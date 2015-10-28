@@ -2,13 +2,10 @@ Lanch critical
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
 3. Inclusion of support@readdress.io, feedback@readdress.io and contact@readdress.io 
-4. Verification of phone as discussed.
 5. Capture of signup time in users db
-6. suspenssion of account on verification failure
-7. Verification attempts to be recorded in a field in users db
 8. Move out of templates for invites, signup reply ... as shourly quota is 150 / hour for free account, do not use genemail for this, use https://github.com/defunkt/pystache
-9. Move configs to .ini style for each process
 10. use of virtual env during deployment
+11. Make use of watchdog
 
 
 
