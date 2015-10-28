@@ -100,7 +100,7 @@ def encode(latitude, longitude, codeLength=PAIR_CODE_LENGTH_):
         raise ValueError('Invalid Open Location Code length' + str(codeLength))
     latitude = clipLatitude(latitude)
     longitude = normalizeLongitude(longitude)
-    if longitude == 90:
+    if latitude == 90:
         latitude = latitude - computeLatitutePrecision(codeLength)
     code = encodePairs(latitude, longitude, min(codeLength, PAIR_CODE_LENGTH_))
     if codeLength > PAIR_CODE_LENGTH_:
@@ -168,7 +168,7 @@ def clipLatitude(latitude):
 
 def computeLatitutePrecision(codeLength):
     if codeLength <= 10:
-        return pow(20,math.floor(codeLength / 2 + 2))
+        return pow(20,math.floor((codeLength / -2) + 2))
     return pow(20, -3) / pow(GRID_ROWS_, codeLength - 10)
 
 def normalizeLongitude(longitude):
@@ -195,9 +195,9 @@ def encodePairs(latitude, longitude, codeLength):
         digitCount += 1
         if digitCount == SEPARATOR_POSITION_ and digitCount < codeLength:
             code += SEPARATOR_
-    if code.length < SEPARATOR_POSITION_:
-        code += ''.zfill(SEPARATOR_POSITION_ - code.length + 1)
-    if code.length == SEPARATOR_POSITION_:
+    if len(code) < SEPARATOR_POSITION_:
+        code += ''.zfill(SEPARATOR_POSITION_ - len(code))
+    if len(code) == SEPARATOR_POSITION_:
         code += SEPARATOR_
     return code
 
@@ -240,7 +240,7 @@ def decodeGrid(code):
     latPlaceValue = GRID_SIZE_DEGREES_
     lngPlaceValue = GRID_SIZE_DEGREES_
     i = 0
-    while (i < code.length):
+    while i < len(code):
         codeIndex = CODE_ALPHABET_.find(code[i])
         row = math.floor(codeIndex / GRID_COLUMNS_)
         col = codeIndex % GRID_COLUMNS_
@@ -254,10 +254,22 @@ def decodeGrid(code):
 
 class CodeArea:
     def __init__(self,latitudeLo, longitudeLo, latitudeHi, longitudeHi, codeLength):
-      self.latitudeLo = latitudeLo
-      self.longitudeLo = longitudeLo
-      self.latitudeHi = latitudeHi
-      self.longitudeHi = longitudeHi
-      self.codeLength = codeLength
-      self.latitudeCenter = min( latitudeLo + (latitudeHi - latitudeLo) / 2, LATITUDE_MAX_)
-      self.longitudeCenter = min( longitudeLo + (longitudeHi - longitudeLo) / 2, LONGITUDE_MAX_)
+        self.latitudeLo = latitudeLo
+        self.longitudeLo = longitudeLo
+        self.latitudeHi = latitudeHi
+        self.longitudeHi = longitudeHi
+        self.codeLength = codeLength
+        self.latitudeCenter = min( latitudeLo + (latitudeHi - latitudeLo) / 2, LATITUDE_MAX_)
+        self.longitudeCenter = min( longitudeLo + (longitudeHi - longitudeLo) / 2, LONGITUDE_MAX_)
+
+    def __repr__(self):
+        return str([self.latitudeLo,
+                self.longitudeLo,
+                self.latitudeHi,
+                self.longitudeHi,
+                self.latitudeCenter,
+                self.longitudeCenter,
+                self.codeLength])
+
+    def latlng(self):
+        return [self.latitudeCenter, self.longitudeCenter]
