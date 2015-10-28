@@ -457,7 +457,7 @@ class RecvHandler(BaseHandler):
 
     rclient = self.settings['rclient']
     ignored =  self.settings ["ignored_in_recv"]
-    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io' ]
+    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io', 'support@readdress.io', 'feedback@readdress.io' , 'contact@readdress.io', ]
 
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
