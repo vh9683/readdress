@@ -73,6 +73,12 @@ class MongoORM:
         data['suspended'] = 'False'
         data['verify_count'] = 0
 
+        utc_timestamp = datetime.datetime.utcnow()
+        if not self.valids.isregistereduser(m):
+            data['inserted_time'] = utc_timestamp
+        else:
+            data['signup_time'] = utc_timestamp
+
         if n:
             data['name'] = n
 
@@ -204,7 +210,7 @@ class MongoORM:
         self.getdb().users.update( { 'actual': a },  {"$set": {'verify_count' : value} } )
         return
 
-    def updatePhoneVerifiedField(seld, a, value):
+    def updatePhoneVerifiedField(self, a, value):
         self.getdb().users.update( { 'actual': a },  {"$set": {'phone_verified' : value} } )
         return
 

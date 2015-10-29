@@ -1,7 +1,6 @@
 Lanch critical
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
-3. Capture of signup time in users db
 4. use of virtual env during deployment
 5. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
 6. Create a new mail id - otp@readdress.io to get TOTP
