@@ -6,6 +6,7 @@ config_file = 'readdress_config.ini'
 
 class ReConfig:
     def __init__(self):
+        self.ignored_lists = list()
         self.config = configparser.ConfigParser()
         self.config.optionxform = str
         self.config_file = os.path.join(os.getcwd(), config_file)
@@ -20,7 +21,7 @@ class ReConfig:
         return
 
     def ConfigSectionMap(self, section):
-        print ("Sections : {}".format(self.config.sections()))
+        #print ("Sections : {}".format(self.config.sections()))
         if section == 'DEFAULT':
             return self.config.defaults()
 
@@ -56,3 +57,14 @@ class ReConfig:
     def get_formatted_noreply(self):
         import email.utils
         return email.utils.formataddr( ( self.get_noreply_name(), self.get_noreply_mailid() ))
+
+    def get_ignored_list(self):
+        if len(self.ignored_lists) == 0 :
+            res = self.ConfigSectionMap('APP')['IGNORED_MAIL_ROUTES']
+            self.ignored_lists = res.split(',')
+            self.ignored_lists = [ i.strip() for i in self.ignored_lists ]
+
+        return self.ignored_lists
+
+            
+

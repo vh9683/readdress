@@ -458,8 +458,7 @@ class RecvHandler(BaseHandler):
       return
 
     rclient = self.settings['rclient']
-    ignored =  self.settings ["ignored_in_recv"]
-    ignored = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io', 'support@readdress.io', 'feedback@readdress.io' , 'contact@readdress.io', ]
+    ignored = readdress_config.get_ignored_list()
 
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
@@ -576,8 +575,6 @@ inbounddb.invitesRecipients.ensure_index("Expiry_date", expireAfterSeconds=0)
 
 rclient = StrictRedis()
 
-ignoredmails = ['signup@readdress.io','noreply@readdress.io','pluscode@readdress.io', 'inviteafriend@readdress.io', 'deregister@readdress.io', 'unsubscribe@readdress.io' , 'changephone@readdress.io' ]
-
 settings = {"static_path": "frontend/Freeze/",
             "template_path": "frontend/Freeze/html/",
             "inbounddb": inbounddb,
@@ -590,7 +587,6 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw",
                                   "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg",
                                   "/changephone": "AFpsYX7y1GJ67vakDqoxpA"},
-             "ignored_in_recv" : ignoredmails,
 }
 
 
