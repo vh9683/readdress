@@ -1,17 +1,20 @@
 Lanch critical
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
-5. Capture of signup time in users db
-10. use of virtual env during deployment
-11. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
-
+3. Capture of signup time in users db
+4. use of virtual env during deployment
+5. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
+6. Create a new mail id - otp@readdress.io to get TOTP
+7. Create a REST API that takes API key, phone number and totp and returns user data
+8. add spam, dkim and spf check for mandrill routes except recv
+9. update verify page with details on why plus code is asked
+10. udate welcome template with newer features
+11. include API key in welcome mail based on domain
 
 
 Non critical
 * Should we handle cases where email-id is modified and difft users are to be notfied abt the same
 
-1. separate page with signup instructions that can be shortened and given to other websites
 2. Send deregister cancel link for deregister/unsunsbcribe mailid
 3. https://pypi.python.org/pypi/collective.googleanalytics/1.4.4 
-5. client only API to retrive plus.code from phone number for integration with registered websites - similar to google sigin
 1. email address for phone to lat lng / plus code conversion : https://github.com/google/open-location-code/
