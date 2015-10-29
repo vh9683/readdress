@@ -74,15 +74,18 @@ class BaseHandler(tornado.web.RequestHandler):
         return user['mapped']
 
     def is_dkim_signed_valid(self, ev):
-        dkim = ev['msg']['dkim']
-        if dkim['signed'] == 'true' and dkim['valid'] == 'true':
+        dkim = ev['msg'].get('dkim',None)
+        if dkim and dkim['signed'] == 'true' and dkim['valid'] == 'true':
             return True
         else:
             return False
 
     def get_spf_result(self, ev):
-        spf = ev['msg']['spf']
-        return spf['result']
+        spf = ev['msg'].get('spf', None)
+        if spf:
+            return spf['result']
+        else:
+            return 'none'
 
     def filter_ev(self, ev):
         mail_allowed = False
@@ -90,7 +93,7 @@ class BaseHandler(tornado.web.RequestHandler):
             dkresult = self.get_spf_result(ev)
             if dkresult in readdress_configs.get_spf_allowed_results():
                 mail_allowed = True
-            if ev['msg']['spam_report']['score'] > 5.5:
+            if ev['msg'].get(['spam_report']).get(['score']) > 5.5:
                 mail_allowed = False
                 
         return mail_allowed
