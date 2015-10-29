@@ -73,6 +73,27 @@ class BaseHandler(tornado.web.RequestHandler):
           return None
         return user['mapped']
 
+    def is_dkim_signed_valid(self, ev):
+        dkim = ev['msg']['dkim']
+        if dkim['signed'] == 'true' and dkim['valid'] == 'true':
+            return True
+        else:
+            return False
+
+    def get_spf_result(self, ev):
+        spf = ev['msg']['spf']
+        return spf['result']
+
+    def filter_ev(self, ev):
+        mail_allowed = False
+        if self.is_dkim_signed_valid(ev):
+            dkresult = self.get_spf_result(ev)
+            if dkresult in readdress_configs.get_spf_allowed_results():
+                mail_allowed = True
+            if ev['msg']['spam_report']['score'] > 5.5:
+                mail_allowed = False
+                
+        return mail_allowed
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -160,6 +181,13 @@ class SignupHandler(BaseHandler):
     rclient = self.settings['rclient']
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
+
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+
     from_email = ev['msg']['from_email']
     from_name = ev['msg']['from_name']
     if from_name is None or from_name is '':
@@ -265,6 +293,11 @@ class DeregisterHandler(BaseHandler):
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
 
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
     
     #Mail-id will be deregistered in 24 hours , mail to be sent out
     rclient = self.settings['rclient']
@@ -299,6 +332,12 @@ class ModifyHandler(BaseHandler):
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
 
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+
     #modify phone number handler
     rclient = self.settings['rclient']
     ''' Push the entire json to mailhandler thread through redis list '''
@@ -331,6 +370,13 @@ class PluscodeHandler(BaseHandler):
       return
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
+
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+
     from_email = ev['msg']['from_email']
     pluscode = ev['msg']['subject']
     rclient = self.settings['rclient']
@@ -399,6 +445,12 @@ class InviteFriendHandler(BaseHandler):
       return
     ev = json.loads(ev, "utf-8")
     ev = ev[0]
+
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
     rclient = self.settings['rclient']
     from_email = ev['msg']['from_email']
     from_name = ev['msg']['from_name']
@@ -458,7 +510,7 @@ class RecvHandler(BaseHandler):
       return
 
     rclient = self.settings['rclient']
-    ignored = readdress_config.get_ignored_list()
+    ignored = readdress_configs.get_ignored_list()
 
     gen_log.info('inbound recv hit!')
     ev = self.get_argument('mandrill_events',False)
@@ -470,6 +522,12 @@ class RecvHandler(BaseHandler):
     else:
       ev = json.loads(ev, "utf-8")
       ev = ev[0]
+
+      if not self.filter_ev(ev):
+          self.set_status(200)
+          self.write({'status': 200})
+          self.finish()
+          return
 
       for to,toname in ev['msg']['to']:
         if to in ignored:

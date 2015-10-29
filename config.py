@@ -66,5 +66,13 @@ class ReConfig:
 
         return self.ignored_lists
 
+    def get_spf_allowed_results(self):
+        res = self.ConfigSectionMap('APP')['SPF_ALLOWED_ON_DKIM_PASS']
+        allowed_list = res.split(',')
+        allowed_list = [ i.strip() for i in allowed_list]
+        return allowed_list
+
+
+
             
 
