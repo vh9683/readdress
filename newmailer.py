@@ -66,7 +66,7 @@ if __name__ == '__main__':
             mailcontent = pystache.render(mailtemplates[message['template_name']]['template'],message['global_merge_vars'])
             msg = msg = MIMEText(mailcontent,'html')
             msg['Subject'] = mailtemplates[message['template_name']]['subject']
-            msg['From'] = mailtemplates[message['template_name']]['from_email']
+            From = mailtemplates[message['template_name']]['from_email']
             if From == 'noreply':
                 From = readdress_configs.get_formatted_noreply()
             msg['From'] = From

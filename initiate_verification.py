@@ -12,7 +12,6 @@ import uuid
 from redis import StrictRedis
 
 import dbops
-import validations
 from config import ReConfig
 
 readdress_configs = ReConfig()
@@ -104,13 +103,6 @@ def sendSuspendMail(user):
     mapped = user['mapped']
     phonenum = user.split('@')[0]
     from_name = user['name']
-
-    session = {
-        'actual'  : from_email,
-        'mapped'  : mapped,
-        'phonenum': phonenum,
-        'name'    : from_name
-    }
 
     msg = { 'template_name': 'verifyPhoneTemplate,', 'email': from_email }
     rclient.lpush('mailer',pickle.dumps(msg))

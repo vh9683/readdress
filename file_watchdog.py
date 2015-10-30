@@ -1,10 +1,14 @@
+#! /usr/bin/python3.4
 import sys
+import os
 import time
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler
 import logging
 import logging.handlers
+from redis import StrictRedis
 
+instance='0'
 handler='FILEWATCHDOG-['+instance+']'
 formatter = ('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=formatter)
