@@ -98,12 +98,13 @@ class BaseHandler(tornado.web.RequestHandler):
         if ev['msg'].get('spam_report').get('score', 5) > 5.5:
             mail_allowed = False
                 
-        action = readdress_configs.ConfigSectionMap['APP']['DKIM_SPF_FAILURE_ACTION']
+        action = readdress_configs.ConfigSectionMap('APP')['DKIM_SPF_FAILURE_ACTION']
         if action == 'REJECT':
             pass
 
         if (action == 'WARN' or action == 'ALLOW') and mail_allowed == False:
-            gen_info.warn("Mail with msgid {} failed filter check".format
+            mail_allowed = True
+            gen_log.warn("Mail with msgid {} failed filter check".format
                           ( ev['msg']['headers']['Message-Id'] ) )
         return mail_allowed
 
@@ -159,7 +160,7 @@ class VerifyHandler(BaseHandler):
     user = yield inbounddb.users.find_one({'actual': session['actual']})
     utc_timestamp = datetime.datetime.utcnow()
     if user:
-      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified':'False', 'suspended':'False', 'signup_time' : utc_timestamp}})
+      yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified':'False', 'suspended':'False', 'signup_time' : utc_timestamp, 'verify_count' : 0 }})
     else:
       yield inbounddb.users.insert({'actual': session['actual'], 'mapped': session['mapped'], 'pluscode': pluscode, 'name': session['name'], 'phone_verified': 'False' , 'suspended' : 'False', 'verify_count' : 0, 'signup_time' : utc_timestamp} )
 
@@ -248,18 +249,21 @@ class SignupHandler(BaseHandler):
       self.finish()
       return
 
+
     actual_user = yield self.getuser(from_email)
     if actual_user and actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) :
-      content = "This email-id {0} is already associated with another phone number, you can associate one phone number with an email id for free account.".format(from_email)
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
-    elif actual_user and actual_user['mapped'] == (phonenum[1:]+'@'+OUR_DOMAIN) :
+      phvalids = PhoneValidations('+'+actual_user['mapped'].split('@')[0])
+      if phvalids.validate():
+         content = "This email-id {0} is already associated with another phone number, you can associate one phone number with an email id for free account.".format(from_email)
+         msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
+         count = rclient.publish('mailer',pickle.dumps(msg))
+         gen_log.info('message ' + str(msg))
+         gen_log.info('message published to ' + str(count))
+         self.set_status(200)
+         self.write({'status': 200})
+         self.finish()
+         return
+    elif actual_user and actual_user['mapped'] == (phonenum[1:]+'@'+OUR_DOMAIN) and actual_user['actual'] != from_email:
       content = "This email-id {0} is already associated with an phone number".format(from_email)
       msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
       count = rclient.publish('mailer',pickle.dumps(msg))
@@ -269,7 +273,6 @@ class SignupHandler(BaseHandler):
       self.write({'status': 200})
       self.finish()
       return
-
 
     session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum, 'name': from_name}
     sessionid = uuid.uuid4().hex
@@ -432,7 +435,7 @@ class InviteFriendHandler(BaseHandler):
     if not user:
       utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(days=30)
       user = yield inbounddb.invitesRecipients.insert( { 'email' : mailid, 'Expiry_date' : utc_timestamp } )
-      msg = {'template_name': 'readdressInvite', 'email': mailid, 'global_merge_vars': {'friend': fromname}}
+      msg = {'template_name': 'readdressinvite', 'email': mailid, 'global_merge_vars': {'friend': fromname}}
       rclient.lpush('mailer',pickle.dumps(msg))
       gen_log.info('message ' + str(msg))
     else:
@@ -649,6 +652,7 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/signup": "ZWNZCpFTJLg7UkJCpEUv9Q",
                                   "/pluscode": "oKkvJSC7REP5uvojOBFcfg",
                                   "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw",
+                                  "/deregister": "KyfhDcTL9Go5aZ4VA4Q8Hw",
                                   "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg",
                                   "/changephone": "AFpsYX7y1GJ67vakDqoxpA"},
 }
@@ -665,6 +669,7 @@ application = tornado.web.Application([
     (r"/pluscode", PluscodeHandler),
     (r"/inviteafriend", InviteFriendHandler),
     (r"/unsubscribe", DeregisterHandler),
+    (r"/deregister", DeregisterHandler),
     (r"/changephone", ModifyHandler),
     (r"/verifyphone/(.*)", VerifyPhoneHandlder),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),

@@ -32,7 +32,7 @@ def fetchUsersRecords():
     v_recs = list()
     s_recs = list()
     v_res = db.getUsersToBeVerifiedRecords()
-    v_recs = [ i for i in v_res if(i['verify_count'] <= VERIFICATION_LIMIT)]
+    v_recs = [ i for i in v_res if(i.get('verify_count',0) <= VERIFICATION_LIMIT)]
     logger.info("Records size fetched {}".format(len(v_recs)))
 
     s_res = db.getUsersToBeSuspended(verification=VERIFICATION_LIMIT)
@@ -47,7 +47,7 @@ def fetchUsersRecords():
 def sendVerificationMail(user):
     from_email = user['actual']
     mapped = user['mapped']
-    phonenum = user.split('@')[0]
+    phonenum = mapped.split('@')[0]
     from_name = user['name']
 
     session = {
@@ -66,7 +66,7 @@ def sendVerificationMail(user):
     global_vars['sessionid'] = sessionid
     global_vars['validity_time'] = validity_time
 
-    if user['verify_count'] < 3:
+    if user.get('verify_count',0) < 3:
         msg = { 'template_name': 'verifyPhoneTemplate,', 'email': from_email, 'global_merge_vars': global_vars }
     else:
         msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt,', 'email': from_email, 'global_merge_vars': global_vars }
@@ -84,7 +84,7 @@ def start_verification(task_name, work_queue):
         #yield from asyncio.sleep(0.5)
         #update the verify_count in db
         verifycount = queue_item.get('verify_count', 0) #default is 0
-        if verifycount <= 3 and queue_item['suspended'] is False:
+        if verifycount <= 3 and queue_item.get('suspended', 'False') == 'False':
             sendVerificationMail(queue_item)
         else:
             logger.info("User :{0} verification count : {1} and suspened status :{2}".format (
@@ -101,7 +101,7 @@ def start_verification(task_name, work_queue):
 def sendSuspendMail(user):
     from_email = user['actual']
     mapped = user['mapped']
-    phonenum = user.split('@')[0]
+    phonenum = mapped.split('@')[0]
     from_name = user['name']
 
     msg = { 'template_name': 'verifyPhoneTemplate,', 'email': from_email }

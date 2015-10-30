@@ -65,6 +65,7 @@ def prepareMail (msg, body=None):
     msg['From'] = FromEMail
 
     if body:
+        logger.info("Response : {}".format(body))
         text = bodypart.format(body)
         textpart = MIMEText(text, 'plain')
         msg.attach(textpart)
@@ -100,6 +101,9 @@ def emailDeregisterHandler(ev):
     ''' Just to keep back up of orig mail'''
     del msg['DKIM-Signature']
     del msg['Cc']
+    del msg['Received']
+    del msg['Message-ID']
+
     subject = msg['Subject']
     del msg['Subject']
     subject = 'Re: ' + subject

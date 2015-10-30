@@ -92,6 +92,9 @@ def genBounceEmail_handler(jsond):
     del msg['Subject']
     subject = 'Re: ' + subject
     msg['Subject'] = subject
+    del msg['Cc']
+    del msg['Received']
+    del msg['Message-ID']
 
     text = """Your mail could not be sent to these foillowing ids  {} \n 
               Reason : They have deregistered from our services\n""".format(", ".join(userslist))

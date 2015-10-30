@@ -127,9 +127,9 @@ def getToAddresses(msg):
                 mapped = db.getmapped(maddress)
                 if not mapped:
                     invitercpts.append(maddress)
-                newmapaddr(maddress, toname, True)
-                logger.info("changed address is : {} , {}".format(maddress,toname))
-                modto = [maddress, toname]
+                    mapped, sendInvite = newmapaddr(maddress, toname, True)
+                logger.info("changed address is : {} , {}".format(mapped,toname))
+                modto = [mapped, toname]
         else:
             mapped = db.getmapped(to)
             if not mapped:
@@ -525,13 +525,14 @@ def emailHandler(ev, pickledEv):
             del msg['Cc']
         user = db.getuser(actual)
         if user:
-            rto.append(email.utils.formataddr((user['name'],user['actual'])))
+            rto.append(email.utils.formataddr((user.get('name', ''), user.get('actual', '') )))
         logger.info('To: ' + str(rto))
         msg['To'] = ','.join(rto)
         logger.info("Pushing msg to sendmail list {}\n".format(recepient))
 
         #below check is to prevent sending mail to self readdress ... 
         if ev['msg']['from_email'] == db.getactual(mailid[0]):
+            logger.info("From email failed: {} : {}".format(ev['msg']['from_email'], db.getactual(mailid[0])) )
             continue
         elif db.findDeregistedUser(recepient) :
             deregusers.append(recepient)

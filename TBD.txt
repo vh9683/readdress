@@ -6,7 +6,6 @@ Lanch critical
 6. Create a new mail id - otp@readdress.io to get TOTP
 7. Create a REST API that takes API key, phone number and totp and returns user data
 9. update verify page with details on why plus code is asked
-10. udate welcome template with newer features
 11. include API key in welcome mail based on domain
 12. use supervisorctl status to get list of processes and send sigusr1 to all pids
 

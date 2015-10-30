@@ -103,6 +103,9 @@ def emailModifyHandler(ev, pickledEv):
     ''' Just to keep back up of orig mail'''
     del msg['DKIM-Signature']
     del msg['Cc']
+    del msg['Received']
+    del msg['Message-ID']
+
     subject = msg['Subject']
     del msg['Subject']
     subject = 'Re: ' + subject
