@@ -5,7 +5,6 @@ Lanch critical
 5. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
 6. Create a new mail id - otp@readdress.io to get TOTP
 7. Create a REST API that takes API key, phone number and totp and returns user data
-8. add spam, dkim and spf check for mandrill routes except recv
 9. update verify page with details on why plus code is asked
 10. udate welcome template with newer features
 11. include API key in welcome mail based on domain

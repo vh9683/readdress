@@ -95,9 +95,16 @@ class BaseHandler(tornado.web.RequestHandler):
             dkresult = self.get_spf_result(ev)
             if dkresult in readdress_configs.get_spf_allowed_results():
                 mail_allowed = True
-            if ev['msg'].get('spam_report').get('score', 5) > 5.5:
-                mail_allowed = False
+        if ev['msg'].get('spam_report').get('score', 5) > 5.5:
+            mail_allowed = False
                 
+        action = readdress_configs.ConfigSectionMap['APP']['DKIM_SPF_FAILURE_ACTION']
+        if action == 'REJECT':
+            pass
+
+        if (action == 'WARN' or action == 'ALLOW') and mail_allowed == False:
+            gen_info.warn("Mail with msgid {} failed filter check".format
+                          ( ev['msg']['headers']['Message-Id'] ) )
         return mail_allowed
 
 class MainHandler(tornado.web.RequestHandler):
@@ -188,7 +195,6 @@ class SignupHandler(BaseHandler):
     ev = ev[0]
 
     if not self.filter_ev(ev):
-        gen_log.warn("FILTER CHECK FAILED")
         self.set_status(200)
         self.write({'status': 200})
         self.finish()
@@ -529,12 +535,6 @@ class RecvHandler(BaseHandler):
       ev = json.loads(ev, "utf-8")
       ev = ev[0]
 
-      if not self.filter_ev(ev):
-          self.set_status(200)
-          self.write({'status': 200})
-          self.finish()
-          return
-
       for to,toname in ev['msg']['to']:
         if to in ignored:
           self.set_status(200)
@@ -629,7 +629,7 @@ class VerifyPhoneHandlder(BaseHandler):
 handler='APP'
 formatter=('\n'+handler+':%(asctime)s-[%(filename)s:%(lineno)s]-%(levelname)s - %(message)s')
 logging.basicConfig(level=logging.DEBUG, format=formatter, stream=sys.stdout)
-gen_log.info("Starting APP")
+gen_log.warn("Starting APP")
 #logging.basicConfig(stream=sys.stdout,level=logging.DEBUG)
 
 inbounddb = MotorClient().inbounddb
