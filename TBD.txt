@@ -1,5 +1,5 @@
-created : backoffice.readdress.io@gmail.com
-password : readdress.io#
+created : backoffice.readdr@gmail.com
+password : backoffice.io#
 
 
 Lanch critical
