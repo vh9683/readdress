@@ -1,3 +1,7 @@
+created : backoffice.readdress.io@gmail.com
+password : readdress.io#
+
+
 Lanch critical
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
