@@ -21,6 +21,8 @@ class MongoORM:
 
         self.backupdb = self.conn.inbounddb.mailBackup
 
+        self.suspended_users_db = self.conn.inbounddb.suspended_users
+
         self.lidb = self.conn.inbounddb.liMailBackUp
 
         self.mccdb = self.conn.inbounddb.mccdb
@@ -61,6 +63,7 @@ class MongoORM:
             return False
         return True
 
+        
     def insertUser(self, a, m, n=None, setExpiry = False, phoneValidated=False):
         user = self.getuser(a)
         if user:
@@ -139,7 +142,7 @@ class MongoORM:
         return duser
 
     def updateExpAndInsertDeregUser(self, user):
-        utc_timestamp = datetime.datetime.utcnow()
+        utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
         self.getdb().users.update({"actual": user['actual']},
                                   {"$set": {'Expiry_date': utc_timestamp}})
 
@@ -153,7 +156,7 @@ class MongoORM:
         return self.lidb
 
     def removeUser(self, user):
-        self.getdb().users.remove( user )
+        print (self.getdb().users.remove( user ) )
         return
 
     def updatePluscode(self, actual, pluscode):
@@ -217,3 +220,27 @@ class MongoORM:
     def re_readconfig(self):
         self.valids.re_readconfig()
         return
+
+    def get_suspenddb(self):
+        return self.suspended_users_db
+
+    def insertUserInSuspendedDB(self, user):
+        return self.get_suspenddb().insert(user)
+
+    def updateSuspendFlagInSuspendedDB(self, user, update_suspended_flag = False):
+        if update_suspended_flag:
+            self.get_suspenddb().update( {'actual':user['actual']}, {'$set' : {'suspended':'True'}} )
+        else:
+            self.get_suspenddb().update( {'actual':user['actual']} , {'$set' : {'suspended':'False'}}  )
+        return
+
+    def isUserSuspended(self, a):
+        if self.valids.isourdomain(a):
+            user = self.get_suspenddb().find_one({'mapped': a})
+        else:
+            user = self.get_suspenddb().find_one({'actual': a})
+        return user
+
+    def removeSuspendedUser(self, a):
+        return self.get_suspenddb().remove( {'actual' : a['actual']} )
+

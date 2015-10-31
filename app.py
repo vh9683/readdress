@@ -263,16 +263,6 @@ class SignupHandler(BaseHandler):
          self.write({'status': 200})
          self.finish()
          return
-    elif actual_user and actual_user['mapped'] == (phonenum[1:]+'@'+OUR_DOMAIN) and actual_user['actual'] != from_email:
-      content = "This email-id {0} is already associated with an phone number".format(from_email)
-      msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
-      count = rclient.publish('mailer',pickle.dumps(msg))
-      gen_log.info('message ' + str(msg))
-      gen_log.info('message published to ' + str(count))
-      self.set_status(200)
-      self.write({'status': 200})
-      self.finish()
-      return
 
     session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum, 'name': from_name}
     sessionid = uuid.uuid4().hex
@@ -669,10 +659,142 @@ class VerifyPhoneHandlder(BaseHandler):
         if resdata['status'] != 'success':
             self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
             return
-        yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'phone_verified':'True'}})
-        reason = "Thank You for verifing phone number."
+        reason = "Thank You for verifing phone number.\n"
+
+        if session.get('user_data', None):
+            ud = pickle.loads(session['user_data'])
+            ud['suspened'] = 'False'
+            ud['verify_count'] = 0
+            ud['phone_verified'] = 0
+            yield inbounddb.users.insert( ud )
+            reason += 'Your account has been activated\n'
+            yield inbounddb.suspended_users.remove ( { 'actual':ud['actual'] } )
+        else:
+            yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'phone_verified':'True'}})
+
         self.render("success.html",reason=reason)
         return
+
+class ActivateAccountHandler(BaseHandler):
+  @coroutine
+  def getuser(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.users.find_one({'actual': a})
+    return user
+
+  @coroutine
+  def is_user_suspended(self,a):
+    inbounddb = self.settings['inbounddb']
+    if self.isourdomain(a):
+      user = yield inbounddb.suspended_users.find_one({'mapped': a})
+    else:
+      user = yield inbounddb.suspended_users.find_one({'actual': a})
+    return user
+
+
+  @coroutine
+  def post(self):
+    if self.validate(self.request):
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
+
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    rclient = self.settings['rclient']
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+    
+    from_email = ev['msg']['from_email']
+    from_name = ev['msg']['from_name']
+    if from_name is None or from_name is '':
+      from_name = 'There'
+    phonenum = ev['msg']['subject']
+
+    phvalids = PhoneValidations(phonenum)
+    if not phvalids.validate():
+      msg = {'template_name': 'activationfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.lpush('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    if not phvalids.is_number_valid():
+      msg = {'template_name': 'activationfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "Invalid phone number given, please check and retry with correct phone number"}]}
+      count = rclient.lpush('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    if not phvalids.is_allowed_MCC():
+      msg = {'template_name': 'activationfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "This Service is not available in your Country as of now."}]}
+      count = rclient.lpush('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    actual_user = yield self.getuser(from_email)
+    if actual_user or actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) :
+      content = "You are not allowed to activate this account \n"
+      phvalids = PhoneValidations('+'+actual_user['mapped'].split('@')[0])
+      if phvalids.validate():
+         content = "This email-id {0} is already associated with another phone number, cannot proceed with activation.".format(from_email)
+      msg = {'template_name': 'activationfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
+      count = rclient.lpush('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    actual_user = yield self.is_user_suspended(from_email)
+    if (actual_user and actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN)) or (actual_user and actual_user['suspended'] != 'True'):
+      content = "You are not allowed to activate this account \n"
+      msg = {'template_name': 'activationfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': content }]}
+      count = rclient.lpush('mailer',pickle.dumps(msg))
+      gen_log.info('message ' + str(msg))
+      gen_log.info('message published to ' + str(count))
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+
+    from initiate_verification import sendVerificationMail
+    sessionid = sendVerificationMail(actual_user)
+    session = rclient.get(sessionid)
+    session['user_data'] = pickle.dumps(actual_user)
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return    
 
 
 handler='APP'
@@ -703,6 +825,7 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/changephone": "AFpsYX7y1GJ67vakDqoxpA",
                                   "/support": "CEpf21jJ9F_a6d4wWx_eRg",
                                   "/feedback": "KuJHmNA6NFJL9pn4_EG9BA",
+                                  "/activate": "KuJHmNA6NFJL9pn4_EG9BA",
                                   "/contact": "Y24GJs4GpBj5R3dx6JMbbQ"},
 }
 
@@ -723,6 +846,7 @@ application = tornado.web.Application([
     (r"/support", SupportMailHandler),
     (r"/feedback", SupportMailHandler),
     (r"/contact", SupportMailHandler),
+    (r"/activate", ActivateAccountHandler),
     (r"/verifyphone/(.*)", VerifyPhoneHandlder),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)

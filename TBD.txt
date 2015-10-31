@@ -3,6 +3,7 @@ password : backoffice.io#
 
 
 Lanch critical
+-1. http://tgscheduler.readthedocs.org/en/latest/usage.html
 0. When user is suspended move the user from users db to suspended db , and should have check for suspended users
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now

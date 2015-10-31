@@ -543,6 +543,9 @@ def emailHandler(ev, pickledEv):
         elif db.findDeregistedUser(recepient) :
             deregusers.append(recepient)
             continue
+        elif db.isUserSuspended(recepient):
+            deregusers.append(recepient)
+            continue
         else:
             logger.info("sendmail check\n")
             sendmail(evKey, msg, recepient)

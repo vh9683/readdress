@@ -73,7 +73,7 @@ def sendVerificationMail(user):
 
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )
-    return
+    return sessionid
 
 
 @asyncio.coroutine
@@ -100,10 +100,6 @@ def start_verification(task_name, work_queue):
 
 def sendSuspendMail(user):
     from_email = user['actual']
-    mapped = user['mapped']
-    phonenum = mapped.split('@')[0]
-    from_name = user['name']
-
     msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email }
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )
@@ -114,7 +110,11 @@ def start_suspension(task_name, work_queue):
     while not work_queue.empty():
         queue_item = yield from work_queue.get()
         logger.info ('{0} grabbed item for : {1}'.format(task_name, queue_item['actual']))
-        db.updateUsersSuspendedField(queue_item['actual'], 'True')
+        queue_item['suspended'] = 'True'
+        utc_timestamp = datetime.datetime.utcnow()
+        queue_item['suspend_time'] = utc_timestamp
+        db.insertUserInSuspendedDB(queue_item)
+        db.removeUser(queue_item)
         sendSuspendMail(queue_item)
     return True
 

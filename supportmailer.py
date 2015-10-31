@@ -204,9 +204,7 @@ def supportMailHandler(ev, pickledEv):
     fromdomain = valids.getdomain(fromemail)
     if readdress_configs.get_ourdomain()  == fromdomain:
         logger.info('Received mail from our doamin ... cannot proceed\n')
-        del origmsg
-        del msg
-        return False
+        return origmsg, msg
 
     if (fromemail == readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL'] or
        fromemail == readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL'] or
@@ -216,9 +214,7 @@ def supportMailHandler(ev, pickledEv):
         success, sendInvite2User = populate_from_addresses(msg)
         if not success:
             logger.info('Error adding from address')
-            del origmsg
-            del msg
-            return False
+            return origmsg, msg
 
         taggedList = []
         if isUserEmailTaggedForLI(fromemail):
@@ -234,9 +230,7 @@ def supportMailHandler(ev, pickledEv):
     success = validthread(msg)
     if not success:
         logger.info("Not a valid mail thread!!, dropping...")
-        del msg
-        del origmsg
-        return False
+        return origmsg, msg
 
     ''' msg will have Message-ID In-ReplyTo and References '''
     evKey =  uuid.uuid4().hex
@@ -271,9 +265,7 @@ def supportMailHandler(ev, pickledEv):
         dbuser =  db.getuser(to)
         if not dbuser:
             logger.info("To Address not found in users db cannot proceed\n")
-            del origmsg
-            del msg
-            return False
+            return origmsg, msg
         msg['To'] = email.utils.formataddr( ( dbuser['name'], dbuser['actual']) )
         recepient = dbuser['actual']
         
@@ -281,9 +273,7 @@ def supportMailHandler(ev, pickledEv):
     #below check is to prevent sending mail to self readdress ... 
     sendmail(evKey, msg, recepient)
 
-    del origmsg
-    del msg
-    return True
+    return origmsg, msg
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SupportEmailHandler .')
@@ -340,7 +330,9 @@ if __name__ == '__main__':
             logger.info("Getting events from {}".format('supportChannel'))
 
         #mail handler
-        supportMailHandler(ev, pickledEv)
+        origmsg, msg = supportMailHandler(ev, pickledEv)
+        del origmsg
+        del msg
 
         if(not backupmail):
             logger.info('len of {} is : {}'.format(

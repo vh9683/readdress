@@ -127,6 +127,16 @@ def emailModifyHandler(ev, pickledEv):
         sendmail(msg, recepient)
         return True
 
+    suser = db.isUserSuspended( from_email )
+    if duser:
+        text = "Phone number is already suspended, Cannot modify the phone number at the moment.\n"
+        text += "Kindly activate your account by sending a mail to activate@readdress.io, with phonenumber in subject line"
+        db.updateExpAndInsertDeregUser( suser )
+        db.removeSuspendedUser(suser)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
+        return True
+
     phvalids = PhoneValidations(oldphonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))

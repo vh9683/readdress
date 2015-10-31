@@ -119,6 +119,16 @@ def emailDeregisterHandler(ev):
         sendmail(msg, recepient)
         return True
 
+    suser = db.isUserSuspended( from_email )
+    if duser:
+        text = "Phone number is already suspended, it will be deregistered, we will be glad to see you back"
+        db.updateExpAndInsertDeregUser( suser )
+        db.removeSuspendedUser(suser)
+        recepient = prepareMail (msg, text)
+        sendmail(msg, recepient)
+        return True
+
+
     phvalids = PhoneValidations(phonenum)
     if not phvalids.validate():
         logger.info ("Exception raised {}".format(phvalids.get_result()))
@@ -158,7 +168,7 @@ def emailDeregisterHandler(ev):
         sendmail(msg, recepient)
         return True
 
-    text = "Your alias will be unsibscribed in 24 hours. \n"
+    text = "Your alias is deregistered from our service, we wil be glad to see you back. \n"
 
     recepient = prepareMail (msg, text)
 
