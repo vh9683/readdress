@@ -67,7 +67,7 @@ def sendVerificationMail(user):
     global_vars['validity_time'] = validity_time
 
     if user.get('verify_count',0) < 3:
-        msg = { 'template_name': 'verifyPhoneTemplate,', 'email': from_email, 'global_merge_vars': global_vars }
+        msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email, 'global_merge_vars': global_vars }
     else:
         msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt,', 'email': from_email, 'global_merge_vars': global_vars }
 
@@ -104,7 +104,7 @@ def sendSuspendMail(user):
     phonenum = mapped.split('@')[0]
     from_name = user['name']
 
-    msg = { 'template_name': 'verifyPhoneTemplate,', 'email': from_email }
+    msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email }
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )
     return

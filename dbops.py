@@ -183,7 +183,7 @@ class MongoORM:
     def getUsersToBeVerifiedRecords(self, numrecords=50):
         query = dict()
         l = [{'phone_verified': 'False'}, {'suspended': 'False'}]
-        query['$or'] = l
+        query['$and'] = l
         return self.getdb().users.find(query).limit(numrecords)
 
     def getUsersToBeSuspended(self,

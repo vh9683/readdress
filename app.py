@@ -607,6 +607,7 @@ class RecvHandler(BaseHandler):
    return
  
 class VerifyPhoneHandlder(BaseHandler):
+    @coroutine
     def get(self, sessionid):
         rclient = self.settings['rclient']
         gen_log.info('sessionid ' + str(sessionid))
@@ -635,7 +636,9 @@ class VerifyPhoneHandlder(BaseHandler):
         session['otpstart'] = resdata['otp_start']
         rclient.setex(sessionid,600,pickle.dumps(session))
         self.render("verifyphone.html",url="/verifyphone/"+sessionid,ostart=resdata['otp_start'])
+        return
 
+    @coroutine
     def post(self,sessionid):
         rclient = self.settings['rclient']
         gen_log.info('sessionid ' + str(sessionid))

@@ -23,6 +23,11 @@ instance = "0"
 logger = logging.getLogger('mailHandler')
 
 readdress_configs = ReConfig()
+support_mail = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL']
+feedback_mail = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL']
+contact_mail = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']
+
+supportlist = [support_mail, feedback_mail, contact_mail]
 
 #class for all db operations using mongodb
 db = dbops.MongoORM()
@@ -397,12 +402,16 @@ def emailHandler(ev, pickledEv):
   '''
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
+
+    if fromemail in supportlist:
+        logger.info("From email id {} is in support list, so forwarding the msg to support handler".format(fromemail))
+        rclient.lpush('supportChannel', pickledEv)
+        return origmsg, msg
+
     fromdomain = valids.getdomain(fromemail)
     if readdress_configs.get_ourdomain()  == fromdomain:
         logger.info('Received mail from our doamin ... cannot proceed\n')
-        del origmsg
-        del msg
-        return False
+        return origmsg, msg
 
 
     allrecipients = []
@@ -432,9 +441,7 @@ def emailHandler(ev, pickledEv):
     success,sendInvite2User = populate_from_addresses(msg)
     if not success:
         logger.info('Error adding from address')
-        del origmsg
-        del msg
-        return False
+        return origmsg, msg
 
     fromemail = ev['msg']['from_email']
 
@@ -446,9 +453,7 @@ def emailHandler(ev, pickledEv):
     success = validthread(msg, allrecipients, fromemail)
     if not success:
         logger.info("Not a valid mail thread!!, dropping...")
-        del msg
-        del origmsg
-        return False
+        return origmsg, msg
 
     success = valid_email_addresses(msg, allrecipients, fromemail)
     if not success:
@@ -457,9 +462,7 @@ def emailHandler(ev, pickledEv):
         count = rclient.publish('mailer',pickle.dumps(msg))
         logger.info('message ' + str(msg))
         logger.info('message published to ' + str(count))
-        del origmsg
-        del msg
-        return False
+        return origmsg, msg
 
     taggedList = []
     logger.info ("All recipients {}".format(allrecipients))
@@ -550,9 +553,7 @@ def emailHandler(ev, pickledEv):
     if len(deregusers):
         sendBounceMail (evKey, origmsg, deregusers)
 
-    del origmsg
-    del msg
-    return True
+    return origmsg, msg
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='EmailHandler .')
@@ -591,6 +592,11 @@ if __name__ == '__main__':
                 del readdress_configs
                 readdress_configs = ReConfig()
                 valids.re_readconfig()
+                support_mail = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL']
+                feedback_mail = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL']
+                contact_mail = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']
+                del supportlist
+                supportlist = [support_mail, feedback_mail, contact_mail]
             else:
                 pass
             break
@@ -609,7 +615,11 @@ if __name__ == '__main__':
             logger.info("Getting events from {}".format('mailhandler'))
 
         #mail handler
-        emailHandler(ev, pickledEv)
+        origmsg, msg = emailHandler(ev, pickledEv)
+
+        del msg
+        del origmsg
+        del ev
 
         if(not backupmail):
             logger.info('len of {} is : {}'.format(
