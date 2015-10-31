@@ -196,6 +196,8 @@ def supportMailHandler(ev, pickledEv):
     msg = copy.deepcopy(origmsg)
     del msg['DKIM-Signature']
     del msg['Received']
+    if msg.get('X-Originating-Email'):
+        del msg['X-Originating-Email']
 
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
@@ -206,9 +208,9 @@ def supportMailHandler(ev, pickledEv):
         del msg
         return False
 
-    if (fromemail == readdress_configs.ConfigSectionMap['SUPPORT']['SUPPORT_MAIL'] or
-       fromemail == readdress_configs.ConfigSectionMap['FEEDBACK']['FEEDBACK_MAIL'] or
-       fromemail == readdress_configs.ConfigSectionMap['CONTACT']['CONTACT_MAIL']):
+    if (fromemail == readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL'] or
+       fromemail == readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL'] or
+       fromemail == readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']):
         pass
     else:
         success, sendInvite2User = populate_from_addresses(msg)
@@ -243,20 +245,21 @@ def supportMailHandler(ev, pickledEv):
     ''' Assuming all mail clients to sendmail witn in REDIS_MAIL_DUMP_EXPIRY_TIME '''
     rclient.expire(evKey, readdress_configs.get_redis_mail_dump_exp_time() )
     toaddr = msg['To'] 
+    del msg['To'] 
     toname, to  = parseaddr(toaddr)
     if 'support' in  to:
         fwdtomailid = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL']
-        msg['To'] = fwdtomailid
+        msg['To'] = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL_MAP']
         recepient = fwdtomailid
         logger.info("mail received to support id, forwarding to {}".format(fwdtomailid))
-    elif 'feedback' in tomailid:
+    elif 'feedback' in to:
         fwdtomailid = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL']
-        msg['To'] = fwdtomailid
+        msg['To'] = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL_MAP']
         recepient = fwdtomailid
         logger.info("mail received to feedback id, forwarding to {}".format(fwdtomailid))
-    elif 'contact' in tomailid:
+    elif 'contact' in to:
         fwdtomailid = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']
-        msg['To'] = fwdtomailid
+        msg['To'] = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL_MAP']
         recepient = fwdtomailid
         logger.info("mail received to contact id, forwarding to {}".format(fwdtomailid))
     else:

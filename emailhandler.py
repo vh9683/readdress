@@ -53,6 +53,7 @@ def newmapaddr(a, n=None, setExpiry=None):
 def populate_from_addresses(msg):
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
+    logger.info("TEST {0} {1}".format(fromname , fromemail))
     fromdomain = valids.getdomain(fromemail)
 
     if readdress_configs.get_ourdomain()  == fromdomain:
@@ -379,6 +380,8 @@ def emailHandler(ev, pickledEv):
     ''' Just to keep back up of orig mail'''
     msg = copy.deepcopy(origmsg)
     del msg['DKIM-Signature']
+    if msg.get('X-Originating-Email'):
+        del msg['X-Originating-Email']
 
     '''
   if checkForBccmail(msg):
@@ -538,12 +541,12 @@ def emailHandler(ev, pickledEv):
             deregusers.append(recepient)
             continue
         else:
+            logger.info("sendmail check\n")
             sendmail(evKey, msg, recepient)
 
     if len(totalinvitercpts):
         sendInvite(totalinvitercpts, fromname)
 
-    # send bounce mail to originator
     if len(deregusers):
         sendBounceMail (evKey, origmsg, deregusers)
 

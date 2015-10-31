@@ -326,6 +326,47 @@ class DeregisterHandler(BaseHandler):
     return    
 
 
+class SupportMailHandler(BaseHandler):
+  @coroutine
+  def post(self):
+    if self.validate(self.request):
+      gen_log.info('post authenticated successfully')
+    else:
+      gen_log.info('post authentication failed, remote ip ' + self.request.remote_ip)
+      self.set_status(400)
+      self.write('Bad Request')
+      self.finish()
+      return
+    ev = self.get_argument('mandrill_events',False)
+    if not ev:
+      self.set_status(200)
+      self.write({'status': 200})
+      self.finish()
+      return
+    rclient = self.settings['rclient']
+    ev = json.loads(ev, "utf-8")
+    ev = ev[0]
+
+    if not self.filter_ev(ev):
+        self.set_status(200)
+        self.write({'status': 200})
+        self.finish()
+        return
+    
+    #Mail-id will be deregistered in 24 hours , mail to be sent out
+    rclient = self.settings['rclient']
+    ''' Push the entire json to mailhandler thread through redis list '''
+    pickledEv = pickle.dumps(ev)
+    rclient.lpush('supportChannel', pickledEv)
+
+    self.set_status(200)
+    self.write({'status': 200})
+    self.finish()
+    return    
+
+
+
+
 class ModifyHandler(BaseHandler):
   @coroutine
   def post(self):
@@ -538,6 +579,8 @@ class RecvHandler(BaseHandler):
       ev = json.loads(ev, "utf-8")
       ev = ev[0]
 
+      gen_log.info("from_email : {}".format(ev['msg']['from_email']) )
+      gen_log.info("from : {}".format(ev['msg']['from_name']) )
       for to,toname in ev['msg']['to']:
         if to in ignored:
           self.set_status(200)
@@ -654,7 +697,10 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/inviteafriend": "EVUgwnBc9PaIWDNksPaEzw",
                                   "/deregister": "KyfhDcTL9Go5aZ4VA4Q8Hw",
                                   "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg",
-                                  "/changephone": "AFpsYX7y1GJ67vakDqoxpA"},
+                                  "/changephone": "AFpsYX7y1GJ67vakDqoxpA",
+                                  "/support": "CEpf21jJ9F_a6d4wWx_eRg",
+                                  "/feedback": "KuJHmNA6NFJL9pn4_EG9BA",
+                                  "/contact": "Y24GJs4GpBj5R3dx6JMbbQ"},
 }
 
 
@@ -671,6 +717,9 @@ application = tornado.web.Application([
     (r"/unsubscribe", DeregisterHandler),
     (r"/deregister", DeregisterHandler),
     (r"/changephone", ModifyHandler),
+    (r"/support", SupportMailHandler),
+    (r"/feedback", SupportMailHandler),
+    (r"/contact", SupportMailHandler),
     (r"/verifyphone/(.*)", VerifyPhoneHandlder),
     (r"/(.*)", tornado.web.StaticFileHandler,dict(path=settings['static_path'])),
 ], **settings)
