@@ -49,7 +49,7 @@ if __name__ == '__main__':
         if (rclient.llen(mailerbackup)):
             item = rclient.brpop (mailerbackup)
             message = pickle.loads (item[1])
-            mailcontent = pystache.render(mailtemplates[message['template_name']]['template'],message['global_merge_vars'])
+            mailcontent = pystache.render(mailtemplates[message['template_name']]['template'],message.get('global_merge_vars', ''))
             msg = msg = MIMEText(mailcontent,'html')
             msg['Subject'] = mailtemplates[message['template_name']]['subject']
             From = mailtemplates[message['template_name']]['from_email']
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         else:
             item = rclient.brpoplpush('mailer', mailerbackup)
             message = pickle.loads(item)
-            mailcontent = pystache.render(mailtemplates[message['template_name']]['template'],message['global_merge_vars'])
+            mailcontent = pystache.render(mailtemplates[message['template_name']]['template'],message.get('global_merge_vars', ''))
             msg = msg = MIMEText(mailcontent,'html')
             msg['Subject'] = mailtemplates[message['template_name']]['subject']
             From = mailtemplates[message['template_name']]['from_email']

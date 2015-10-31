@@ -69,7 +69,7 @@ def sendVerificationMail(user):
     if user.get('verify_count',0) < 3:
         msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email, 'global_merge_vars': global_vars }
     else:
-        msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt,', 'email': from_email, 'global_merge_vars': global_vars }
+        msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt', 'email': from_email, 'global_merge_vars': global_vars }
 
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )
