@@ -218,7 +218,7 @@ if __name__ == '__main__':
                 readdress_configs = ReConfig()
                 valids.re_readconfig()
             else:
-                pass
+                break
             break
 
         backupmail = False

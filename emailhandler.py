@@ -601,7 +601,7 @@ if __name__ == '__main__':
                 del supportlist
                 supportlist = [support_mail, feedback_mail, contact_mail]
             else:
-                pass
+                break
             break
 
         backupmail = False

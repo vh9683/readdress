@@ -613,7 +613,7 @@ class VerifyPhoneHandlder(BaseHandler):
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             return
 
-        if session['attempts'] != 0
+        if session['attempts'] != 0:
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             rclient.delete(sessionid)
             return
@@ -664,13 +664,13 @@ class VerifyPhoneHandlder(BaseHandler):
         http_client = AsyncHTTPClient()
         response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
         if response.code != 200:
-            self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            self.render("sorry.html",reason="Invalid OTP. Verification Failed")
             rclient.delete(sessionid)
             return
         resdata = json.loads(response.body.decode())
         gen_log.info('coganlys verify response data ' + str(resdata))
         if resdata['status'] != 'success':
-            self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            self.render("sorry.html",reason="Invalid OTP. Verification Failed")
             rclient.delete(sessionid)
             return
 

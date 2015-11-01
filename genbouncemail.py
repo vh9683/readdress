@@ -145,7 +145,7 @@ if __name__ == '__main__':
                 del readdress_configs
                 readdress_configs = ReConfig()
             else:
-                pass
+                break
             break
 
         backupmail = False

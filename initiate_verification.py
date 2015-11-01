@@ -54,8 +54,8 @@ def sendVerificationMail(user):
         'actual'  : from_email,
         'mapped'  : mapped,
         'phonenum': phonenum,
-        'name'    : from_name
-        'attempts' = 0
+        'name'    : from_name,
+        'attempts' : 0
     }
 
     sessionid = uuid.uuid4().hex
@@ -114,8 +114,10 @@ def start_suspension(task_name, work_queue):
         queue_item['suspended'] = 'True'
         utc_timestamp = datetime.datetime.utcnow()
         queue_item['suspend_time'] = utc_timestamp
-        db.insertUserInSuspendedDB(queue_item)
-        db.removeUser(queue_item)
+        if not db.isUserSuspended(queue_item['actual']):
+           db.insertUserInSuspendedDB(queue_item)
+        if db.getuser(queue_item['actual']):
+           db.removeUser(queue_item)
         sendSuspendMail(queue_item)
     return True
 

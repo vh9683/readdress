@@ -196,6 +196,7 @@ class MongoORM:
         query = dict()
         l = [
             {'phone_verified': 'False'},
+            {'suspended': 'False'},
             {'verify_count': {'$gt': verification}}
         ]
         query['$and'] = l
