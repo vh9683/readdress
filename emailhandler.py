@@ -63,6 +63,12 @@ def populate_from_addresses(msg):
     if readdress_configs.get_ourdomain()  == fromdomain:
         return False, False
 
+    if db.findDeregistedUser(fromemail):
+        deregusers = list()
+        deregusers.append(fromemail)
+        sendBounceMail (msg, deregusers, True)
+        return False, False
+
     mapped, sendInvite2User = newmapaddr(fromemail, fromname, True)
     if not mapped:
         return False, sendInvite2User
@@ -81,12 +87,12 @@ def populate_from_addresses(msg):
     return True, sendInvite2User
 
 
-def sendBounceMail (evKey, origmail, userslist):
+def sendBounceMail (origmail, userslist, originator=False):
     logger.info("Sending bounce mails to originator for following mails :{}".format(userslist))
     data = dict()
-    data['evkey'] = evKey
     data['origmail'] = pickle.dumps(origmail)
     data['userslist'] = ', '.join(userslist)
+    data['originator'] = 'True'
 
     rclient.lpush('genBounceMailHandle', pickle.dumps(data) ) 
     del data
@@ -574,7 +580,7 @@ def emailHandler(ev, pickledEv):
         sendInvite(totalinvitercpts, fromname)
 
     if len(deregusers):
-        sendBounceMail (evKey, origmsg, deregusers)
+        sendBounceMail (origmsg, deregusers)
 
     return origmsg, msg
 

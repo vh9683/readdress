@@ -95,8 +95,13 @@ def genBounceEmail_handler(dict_data):
     del msg['Received']
     del msg['Message-ID']
 
-    text = "Your mail could not be sent to these foillowing ids  {} \n".format(userslist)
-    text += "Reason : Either They have deregistered or their account is suspended from using our services\n"
+    text = ''
+    if dict_data.get('originator',False) == False:
+        text += "Your mail could not be delivered to these foillowing ids  {} \n".format(userslist)
+        text += "Reason : Either They have deregistered or their account is suspended from using our services\n"
+    else:
+        text += "Your mail could not be delievered.\n"
+        text += "Reason : Your account is deregistered. \n"
 
     recepient = prepareMail (msg, text)
 
