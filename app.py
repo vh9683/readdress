@@ -612,6 +612,12 @@ class VerifyPhoneHandlder(BaseHandler):
         if not session:
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             return
+
+        if session['attempts'] != 0
+            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            rclient.delete(sessionid)
+            return
+
         http_client = AsyncHTTPClient()
         response = yield http_client.fetch("https://cognalys.com/api/v1/otp/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&mobile="+session['phonenum'],raise_error=False)
         if response.code != 200:
@@ -624,6 +630,7 @@ class VerifyPhoneHandlder(BaseHandler):
             return
         session['keymatch'] = resdata['keymatch']
         session['otpstart'] = resdata['otp_start']
+        session['attempts'] += 1
         rclient.setex(sessionid,600,pickle.dumps(session))
         self.render("verifyphone.html",url="/verifyphone/"+sessionid,ostart=resdata['otp_start'])
         return
@@ -639,28 +646,35 @@ class VerifyPhoneHandlder(BaseHandler):
         if not session:
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             return
+
         session = pickle.loads(session)
         if not session:
+            rclient.delete(sessionid)
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             return
+
         inbounddb = self.settings['inbounddb']
         user = yield inbounddb.users.find_one({'actual': session['actual']})
         if not user:
+            rclient.delete(sessionid)
             self.render("sorry.html",reason="Invalid Session. This link is not valid")
             return
+
         otp = self.get_argument('otp','junk')
         http_client = AsyncHTTPClient()
         response = yield http_client.fetch("https://cognalys.com/api/v1/otp/confirm/?app_id="+self.settings['coganlys_app_id']+"&access_token="+self.settings['cognalys_acc_token']+"&keymatch="+session['keymatch']+"&otp="+session['otpstart']+otp,raise_error=False)
         if response.code != 200:
             self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            rclient.delete(sessionid)
             return
         resdata = json.loads(response.body.decode())
         gen_log.info('coganlys verify response data ' + str(resdata))
         if resdata['status'] != 'success':
             self.render("sorry.html",reason="Invalid OTP. Please retry with correct OTP")
+            rclient.delete(sessionid)
             return
-        reason = "Thank You for verifing phone number.\n"
 
+        reason = "Thank You for verifing phone number.\n"
         if session.get('user_data', None):
             ud = pickle.loads(session['user_data'])
             ud['suspened'] = 'False'
@@ -673,6 +687,7 @@ class VerifyPhoneHandlder(BaseHandler):
             yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'phone_verified':'True'}})
 
         self.render("success.html",reason=reason)
+        rclient.delete(sessionid)
         return
 
 class ActivateAccountHandler(BaseHandler):

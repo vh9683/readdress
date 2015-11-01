@@ -55,6 +55,7 @@ def sendVerificationMail(user):
         'mapped'  : mapped,
         'phonenum': phonenum,
         'name'    : from_name
+        'attempts' = 0
     }
 
     sessionid = uuid.uuid4().hex

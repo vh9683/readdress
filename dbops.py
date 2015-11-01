@@ -32,7 +32,7 @@ class MongoORM:
         #Set expiry after 24 hours
         self.db.threadMapper.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
-        #TTL for invites users .. expiry after 5 mins
+        #TTL for invites users .. expiry after 24 hours
         self.db.users.ensure_index("Expiry_date", expireAfterSeconds=24*60*60)
 
         #expire after 30days from now
@@ -87,7 +87,7 @@ class MongoORM:
 
         if setExpiry:
             utc_timestamp = datetime.datetime.utcnow()
-            data['setExpiry'] = utc_timestamp
+            data['Expiry_date'] = utc_timestamp
 
         phValid = 'False'
         if phoneValidated:
