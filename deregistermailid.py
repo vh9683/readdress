@@ -120,7 +120,7 @@ def emailDeregisterHandler(ev):
         return True
 
     suser = db.isUserSuspended( from_email )
-    if duser:
+    if suser:
         text = "Phone number is already suspended, it will be deregistered, we will be glad to see you back"
         db.updateExpAndInsertDeregUser( suser )
         db.removeSuspendedUser(suser)

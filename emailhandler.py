@@ -49,7 +49,7 @@ def newmapaddr(a, n=None, setExpiry=None):
     mapped = db.getmapped(a)
     if not mapped:
         ''' better to add ttl for this address '''
-        mapped = uuid.uuid4().hex+'@'+readdress_configs.get_ourdomain() 
+        mapped = uuid.uuid4().hex+'@'+readdress_configs.get_ourdomain()
         db.insertUser( a, mapped, n , setExpiry)
         logger.info('insterted new ext user ' + a + ' -> ' + mapped)
         sendInvite2User = True
@@ -58,7 +58,6 @@ def newmapaddr(a, n=None, setExpiry=None):
 def populate_from_addresses(msg):
     fromstring = msg['From']
     fromname, fromemail = parseaddr(fromstring)
-    logger.info("TEST {0} {1}".format(fromname , fromemail))
     fromdomain = valids.getdomain(fromemail)
 
     if readdress_configs.get_ourdomain()  == fromdomain:
@@ -86,10 +85,10 @@ def sendBounceMail (evKey, origmail, userslist):
     logger.info("Sending bounce mails to originator for following mails :{}".format(userslist))
     data = dict()
     data['evkey'] = evKey
-    data['origmail'] = origmail
-    data['userslist'] = userslist
+    data['origmail'] = pickle.dumps(origmail)
+    data['userslist'] = ', '.join(userslist)
 
-    rclient.lpush('genBounceMailHandle', pickle.dumps( convertDictToJson(data) ) )
+    rclient.lpush('genBounceMailHandle', pickle.dumps(data) ) 
     del data
     return
 
@@ -107,12 +106,14 @@ def sendInvite (invitesrcpts, fromname):
                     'global_merge_vars': [{'name': 'friend', 'content': fromname}]}
                 rclient.publish('mailer',pickle.dumps(msg))
 
-def getToAddresses(msg):
+def get_To_CC_Addresses(msg, destheader):
     torecipients = list()
     invitercpts = list()
-    tostring = msg.get('To')
+    deregusers = list()
+
+    tostring = msg.get(destheader)
     if tostring is None:
-        return torecipients, invitercpts, list()
+        return torecipients, invitercpts, list(), list()
     tolst = tostring.split(',')
     tolst = [to.strip() for to in tolst if not 'undisclosed-recipient' in to]
     actualTo = list()
@@ -130,64 +131,81 @@ def getToAddresses(msg):
         if mto is not None:
             maddress = subcomp.sub('@', mto.group(1), count=1)
             if maddress is not None and validate_email(maddress):
-                mapped = db.getmapped(maddress)
-                if not mapped:
-                    invitercpts.append(maddress)
-                    mapped, sendInvite = newmapaddr(maddress, toname, True)
-                logger.info("changed address is : {} , {}".format(mapped,toname))
-                modto = [mapped, toname]
+                if db.findDeregistedUser(maddress):
+                    deregusers.append(maddress)
+                elif db.isUserSuspended(maddress):
+                    deregusers.append(maddress)
+                else:
+                    mapped = db.getmapped(maddress)
+                    if not mapped:
+                        invitercpts.append(maddress)
+                        mapped, sendInvite = newmapaddr(maddress, toname, True)
+                    logger.info("changed address is : {} , {}".format(mapped,toname))
+                    modto = [mapped, toname]
+                    if modto:
+                        torecipients.append(modto)
         else:
-            mapped = db.getmapped(to)
-            if not mapped:
-                invitercpts.append(to)
-                mapped, sendInvite = newmapaddr(to, toname, True)
-                modto = [mapped, toname]
+            if db.findDeregistedUser(to) :
+                deregusers.append(to)
+            elif db.isUserSuspended(to):
+                deregusers.append(to)
             else:
-                modto = [mapped, toname]
-
-        torecipients.append( modto )
-    return torecipients, invitercpts, actualTo
-
-def getCcAddresses(msg):
-    ccrecipients = list()
-    invitercpts = list()
-    ccstring = msg.get('Cc')
-    if ccstring is None:
-        return ccrecipients, invitercpts, list()
-    cclst = ccstring.split(',')
-    cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
-    actualCc = list()
-    for ccaddr in cclst:
-        ccname, cc = parseaddr( ccaddr )
-        actualCc.append(cc)
-
-        if ccname is None:
-            ccname = valids.getuserid(cc)
-        elif validate_email(ccname):
-            ccname = valids.getuserid(cc)
-
-        mcc = taddrcomp.match(cc)
-        if mcc is not None:
-            maddress = subcomp.sub('@', mcc.group(1), count=1)
-            if maddress is not None:
-                mapped = db.getmapped(maddress)
+                mapped = db.getmapped(to)
                 if not mapped:
-                    invitercpts.append(maddress)
-                newmapaddr(maddress, ccname, True)
-                logger.info("Mapped address is : {}".format(maddress))
-                modcc = [maddress, ccname]
-        else:
-            #cc = [cc, ccname]
-            mapped = db.getmapped(cc)
-            if not mapped:
-                invitercpts.append(cc)
-                mapped, sendInvite = newmapaddr(cc, ccname, True)
-                modcc = [mapped, ccname]
-            else:
-                modcc = [mapped, ccname]
+                    if valids.getdomain != readdress_configs.get_ourdomain():
+                        invitercpts.append(to)
+                        mapped, sendInvite = newmapaddr(to, toname, True)
+                        modto = [mapped, toname]
+                    else:
+                        deregusers.append(to)
+                        logger.error("Dest number is not registered {}".format(to))
+                else:
+                    modto = [mapped, toname]
 
-        ccrecipients.append(modcc)
-    return ccrecipients, invitercpts, actualCc
+                if modto:
+                    torecipients.append(modto)
+    return torecipients, invitercpts, actualTo, deregusers
+
+#   def getCcAddresses(msg):
+#       ccrecipients = list()
+#       invitercpts = list()
+#       ccstring = msg.get('Cc')
+#       if ccstring is None:
+#           return ccrecipients, invitercpts, list()
+#       cclst = ccstring.split(',')
+#       cclst = [cc.strip() for cc in cclst if not 'undisclosed-recipient' in cc]
+#       actualCc = list()
+#       for ccaddr in cclst:
+#           ccname, cc = parseaddr( ccaddr )
+#           actualCc.append(cc)
+
+#           if ccname is None:
+#               ccname = valids.getuserid(cc)
+#           elif validate_email(ccname):
+#               ccname = valids.getuserid(cc)
+
+#           mcc = taddrcomp.match(cc)
+#           if mcc is not None:
+#               maddress = subcomp.sub('@', mcc.group(1), count=1)
+#               if maddress is not None:
+#                   mapped = db.getmapped(maddress)
+#                   if not mapped:
+#                       invitercpts.append(maddress)
+#                   newmapaddr(maddress, ccname, True)
+#                   logger.info("Mapped address is : {}".format(maddress))
+#                   modcc = [maddress, ccname]
+#           else:
+#               #cc = [cc, ccname]
+#               mapped = db.getmapped(cc)
+#               if not mapped:
+#                   invitercpts.append(cc)
+#                   mapped, sendInvite = newmapaddr(cc, ccname, True)
+#                   modcc = [mapped, ccname]
+#               else:
+#                   modcc = [mapped, ccname]
+
+#           ccrecipients.append(modcc)
+#       return ccrecipients, invitercpts, actualCc
 
 
 def checkForBccmail (msg):
@@ -416,8 +434,8 @@ def emailHandler(ev, pickledEv):
 
     allrecipients = []
     totalinvitercpts = []
-    torecipients, toinvites, actualTos = getToAddresses(msg)
-    ccrecipients, ccinvites, actualCcs = getCcAddresses(msg)
+    torecipients, toinvites, actualTos, deregusersTo = get_To_CC_Addresses(msg, 'To')
+    ccrecipients, ccinvites, actualCcs, deregusersCc = get_To_CC_Addresses(msg, 'Cc')
 
     if len(actualTos) == 0:
         actualTos = None
@@ -508,6 +526,8 @@ def emailHandler(ev, pickledEv):
     rclient.expire(evKey, readdress_configs.get_redis_mail_dump_exp_time() )
     logger.info("All recipients {}".format(allrecipients))
     deregusers = list()
+    deregusers = [u for u in deregusersTo]
+    deregusers += [u for u in deregusersCc]
     for mailid in allrecipients:
         if not valids.isourdomain(mailid[0]):
             continue

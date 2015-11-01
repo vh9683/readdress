@@ -1,7 +1,6 @@
 #! /usr/bin/python3.4
 
 import argparse
-import json
 import logging
 import logging.handlers
 import pickle
@@ -81,12 +80,12 @@ def sendmail( msg, to ):
     return
 
 
-def genBounceEmail_handler(jsond):
+def genBounceEmail_handler(dict_data):
     ''' 
     SPAM check is not done here ... it should have been handled in earlier stage of pipeline
     '''
-    msg = jsond['origmail']
-    userslist = jsond['userslist']
+    msg = pickle.loads(dict_data['origmail'])
+    userslist = dict_data['userslist']
 
     subject = msg['Subject']
     del msg['Subject']
@@ -96,15 +95,15 @@ def genBounceEmail_handler(jsond):
     del msg['Received']
     del msg['Message-ID']
 
-    text = "Your mail could not be sent to these foillowing ids  {} \n"
-    text += "Reason : Either They have deregistered or their account is suspended from using our services\n".format(", ".join(userslist))
+    text = "Your mail could not be sent to these foillowing ids  {} \n".format(userslist)
+    text += "Reason : Either They have deregistered or their account is suspended from using our services\n"
 
     recepient = prepareMail (msg, text)
 
     sendmail(msg, recepient)
 
     del msg
-    del jsond
+    del dict_data
 
     return True
 
@@ -128,7 +127,6 @@ if __name__ == '__main__':
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
         with open(debugfile, 'r') as f:
-            records = json.load(f)
             ev = records[0]
             f.close()
             pickledEv = pickle.dumps(ev)
@@ -153,18 +151,18 @@ if __name__ == '__main__':
             evt = rclient.brpop (genBounceMailHandleBackUp)
             backupmail = True
             pickledData = evt[1]
-            jsond = pickle.loads(pickledData)
+            dict_data = pickle.loads(pickledData)
             logger.info("Getting events from {}".format(genBounceMailHandleBackUp))
         else:
             pickledData = rclient.brpoplpush('genBounceMailHandle', genBounceMailHandleBackUp)
-            jsond = pickle.loads(pickledData)
+            dict_data = pickle.loads(pickledData)
             logger.info("Getting events from {}".format('genBounceMailHandle'))
 
         #mail handler
-        genBounceEmail_handler(jsond)
+        genBounceEmail_handler(dict_data)
 
         if(not backupmail):
             logger.info('len of {} is : {}'.format(
                 genBounceMailHandleBackUp, rclient.llen(genBounceMailHandleBackUp)))
-            rclient.lrem(genBounceMailHandleBackUp, 0, pickledEv)
+            rclient.lrem(genBounceMailHandleBackUp, 0, pickledData)
             logger.info ('len of {} is : {}'.format(genBounceMailHandleBackUp, rclient.llen(genBounceMailHandleBackUp)))
