@@ -28,7 +28,7 @@ VERIFICATION_LIMIT = 3
 
 taskssize = 10
 
-def fetchUsersRecords():
+def fetch_users_records():
     v_recs = list()
     s_recs = list()
     v_res = db.getUsersToBeVerifiedRecords()
@@ -44,11 +44,11 @@ def fetchUsersRecords():
     logger.info("Records size fetched {}".format(len(s_recs)))
     return v_recs, s_recs
 
-def sendVerificationMail(user):
+def send_verification_mail(user):
     from_email = user['actual']
     mapped = user['mapped']
     phonenum = mapped.split('@')[0]
-    from_name = user['name']
+    from_name = user.get('name', '')
 
     session = {
         'actual'  : from_email,
@@ -86,7 +86,7 @@ def start_verification(task_name, work_queue):
         #update the verify_count in db
         verifycount = queue_item.get('verify_count', 0) #default is 0
         if verifycount <= 3 and queue_item.get('suspended', 'False') == 'False':
-            sendVerificationMail(queue_item)
+            send_verification_mail(queue_item)
         else:
             logger.info("User :{0} verification count : {1} and suspened status :{2}".format (
             queue_item['actual'], queue_item['verify_count'], queue_item['suspended'] ))
@@ -99,7 +99,7 @@ def start_verification(task_name, work_queue):
     return True
 
 
-def sendSuspendMail(user):
+def send_suspend_mail(user):
     from_email = user['actual']
     msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email }
     rclient.lpush('mailer',pickle.dumps(msg))
@@ -118,11 +118,11 @@ def start_suspension(task_name, work_queue):
            db.insertUserInSuspendedDB(queue_item)
         if db.getuser(queue_item['actual']):
            db.removeUser(queue_item)
-        sendSuspendMail(queue_item)
+        send_suspend_mail(queue_item)
     return True
 
 
-def start_work(v_recs, s_recs):
+def start_verification_suspension(v_recs, s_recs):
     if not len(v_recs) and not len(s_recs):
         logger.warn("Both v and s records are none... nothing to do")
         return True
@@ -183,9 +183,9 @@ if __name__ == '__main__':
             suspend_recs.append(i)
         exit()
 
-    verify_recs, suspend_recs = fetchUsersRecords()
+    verify_recs, suspend_recs = fetch_users_records()
     if len(verify_recs) or len(suspend_recs):
-        start_work(verify_recs, suspend_recs)
+        start_verification_suspension(verify_recs, suspend_recs)
     else:
         logger.error("No Records to Verify")
     #Fetch the docs from db and initiate session for the same
