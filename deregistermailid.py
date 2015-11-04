@@ -169,6 +169,7 @@ def emailDeregisterHandler(ev):
         return True
 
     text = "Your alias is deregistered from our service, we wil be glad to see you back. \n"
+    text += "To signup send mail to signup@readdress.io with phonenumber in subject line.\n"
 
     recepient = prepareMail (msg, text)
 
