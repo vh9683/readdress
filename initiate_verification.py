@@ -101,7 +101,7 @@ def start_verification(task_name, work_queue):
 
 def send_suspend_mail(user):
     from_email = user['actual']
-    msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email }
+    msg = { 'template_name': 'suspendUserTemplate', 'email': from_email }
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )
     return

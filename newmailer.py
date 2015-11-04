@@ -36,16 +36,8 @@ if __name__ == '__main__':
     logger.info("Starting email sender")
 
     while True:
-        for item in ps.listen():
-            itype = item['type']
-            if itype == 'message':
-                del readdress_configs
-                readdress_configs = ReConfig()
-            else:
-                break
-            break
-
-
+        del readdress_configs
+        readdress_configs = ReConfig()
         if (rclient.llen(mailerbackup)):
             item = rclient.brpop (mailerbackup)
             message = pickle.loads (item[1])

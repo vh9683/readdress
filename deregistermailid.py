@@ -211,15 +211,9 @@ if __name__ == '__main__':
     logger.info("mailDeregisterhandlerBackUp ListName : {} ".format(mailDeregisterhandlerBackUp))
 
     while True:
-        for item in ps.listen():
-            itype = item['type']
-            if itype == 'message':
-                del readdress_configs
-                readdress_configs = ReConfig()
-                valids.re_readconfig()
-            else:
-                break
-            break
+        del readdress_configs
+        readdress_configs = ReConfig()
+        valids.re_readconfig()
 
         backupmail = False
         if (rclient.llen(mailDeregisterhandlerBackUp)):

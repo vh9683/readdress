@@ -142,15 +142,8 @@ if __name__ == '__main__':
     logger.info("genBounceMailHandleBackUp ListName : {} ".format(genBounceMailHandleBackUp))
 
     while True:
-        for item in ps.listen():
-            itype = item['type']
-            if itype == 'message':
-                del readdress_configs
-                readdress_configs = ReConfig()
-            else:
-                break
-            break
-
+        del readdress_configs
+        readdress_configs = ReConfig()
         backupmail = False
         if (rclient.llen(genBounceMailHandleBackUp)):
             evt = rclient.brpop (genBounceMailHandleBackUp)

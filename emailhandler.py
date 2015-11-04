@@ -615,20 +615,12 @@ if __name__ == '__main__':
 
     while True:
         #Read config changes only while processing the mesage
-        for item in ps.listen():
-            itype = item['type']
-            if itype == 'message':
-                del readdress_configs
-                readdress_configs = ReConfig()
-                valids.re_readconfig()
-                support_mail = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL']
-                feedback_mail = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL']
-                contact_mail = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']
-                del supportlist
-                supportlist = [support_mail, feedback_mail, contact_mail]
-            else:
-                break
-            break
+        readdress_configs = ReConfig()
+        valids.re_readconfig()
+        support_mail = readdress_configs.ConfigSectionMap('SUPPORT')['SUPPORT_MAIL']
+        feedback_mail = readdress_configs.ConfigSectionMap('FEEDBACK')['FEEDBACK_MAIL']
+        contact_mail = readdress_configs.ConfigSectionMap('CONTACT')['CONTACT_MAIL']
+        supportlist = [support_mail, feedback_mail, contact_mail]
 
         backupmail = False
         if (rclient.llen(mailhandlerBackUp)):

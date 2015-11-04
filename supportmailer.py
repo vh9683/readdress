@@ -306,15 +306,8 @@ if __name__ == '__main__':
 
     while True:
         #Read config changes only while processing the mesage
-        for item in ps.listen():
-            itype = item['type']
-            if itype == 'message':
-                del readdress_configs
-                readdress_configs = ReConfig()
-                valids.re_readconfig()
-            else:
-                break
-            break
+        readdress_configs = ReConfig()
+        valids.re_readconfig()
 
         backupmail = False
         if (rclient.llen(supportChannelBackUp)):

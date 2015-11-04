@@ -156,7 +156,7 @@ class MongoORM:
         return self.lidb
 
     def removeUser(self, user):
-        print (self.getdb().users.remove( user ) )
+        self.getdb().users.remove( {'actual':user['actual']} )
         return
 
     def updatePluscode(self, actual, pluscode):
