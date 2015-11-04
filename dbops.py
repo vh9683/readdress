@@ -142,7 +142,9 @@ class MongoORM:
         return duser
 
     def updateExpAndInsertDeregUser(self, user):
-        self.getdb().removeUser(user)
+        self.removeUser(user)
+        if user.get('Expiry_date', None):
+            del user['Expiry_date']
         self.getdb().deregisteredUsers.insert( user )
         return
 
