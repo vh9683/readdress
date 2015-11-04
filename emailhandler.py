@@ -142,10 +142,13 @@ def get_To_CC_Addresses(msg, destheader):
                 elif db.isUserSuspended(maddress):
                     deregusers.append(maddress)
                 else:
-                    mapped = db.getmapped(maddress)
-                    if not mapped:
+                    dbuser = db.getuser(maddress)
+                    if not dbuser or not dbuser.get('mapped'):
                         invitercpts.append(maddress)
                         mapped, sendInvite = newmapaddr(maddress, toname, True)
+                    else:
+                        mapped = dbuser['mapped']
+                        toname = dbuser.get('name', '')
                     logger.info("changed address is : {} , {}".format(mapped,toname))
                     modto = [mapped, toname]
                     if modto:
@@ -156,9 +159,9 @@ def get_To_CC_Addresses(msg, destheader):
             elif db.isUserSuspended(to):
                 deregusers.append(to)
             else:
-                mapped = db.getmapped(to)
-                if not mapped:
-                    if valids.getdomain != readdress_configs.get_ourdomain():
+                dbuser = db.getuser(to)
+                if not dbuser or not dbuser.get('mapped'):
+                    if valids.getdomain(to) != readdress_configs.get_ourdomain():
                         invitercpts.append(to)
                         mapped, sendInvite = newmapaddr(to, toname, True)
                         modto = [mapped, toname]
@@ -166,6 +169,8 @@ def get_To_CC_Addresses(msg, destheader):
                         deregusers.append(to)
                         logger.error("Dest number is not registered {}".format(to))
                 else:
+                    toname = dbuser.get('name', '')
+                    mapped = dbuser['mapped']
                     modto = [mapped, toname]
 
                 if modto:
