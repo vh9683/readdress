@@ -57,6 +57,11 @@ def send_verification_mail(user):
         'name'    : from_name,
         'attempts' : 0
     }
+    if user.get('_id'):
+        del user['_id']
+
+    session['user_data'] = {}
+    session['user_data']['sud'] = pickle.dumps(user)
 
     sessionid = uuid.uuid4().hex
     rclient.setex(sessionid, readdress_configs.get_verification_expire_time_secs() ,pickle.dumps(session))
