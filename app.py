@@ -838,9 +838,9 @@ settings = {"static_path": "frontend/Freeze/",
                                   "/deregister": "KyfhDcTL9Go5aZ4VA4Q8Hw",
                                   "/unsubscribe": "VEXYzywV5OnorzXKlu2OKg",
                                   "/changephone": "AFpsYX7y1GJ67vakDqoxpA",
+                                  "/activate": "Rru1BMoCNGcLiT9RLMvoZQ",
                                   "/support": "CEpf21jJ9F_a6d4wWx_eRg",
                                   "/feedback": "KuJHmNA6NFJL9pn4_EG9BA",
-                                  "/activate": "KuJHmNA6NFJL9pn4_EG9BA",
                                   "/contact": "Y24GJs4GpBj5R3dx6JMbbQ"},
 }
 

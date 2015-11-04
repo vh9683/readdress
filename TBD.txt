@@ -3,8 +3,6 @@ password : backoffice.io#
 
 
 Lanch critical
--1. http://apscheduler.readthedocs.org/en/3.0/
-0. When user is suspended move the user from users db to suspended db , and should have check for suspended users
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
 4. use of virtual env during deployment
@@ -13,7 +11,7 @@ Lanch critical
 7. Create a REST API that takes API key, phone number and totp and returns user data
 9. update verify page with details on why plus code is asked
 11. include API key in welcome mail based on domain
-12. use supervisorctl status to get list of processes and send sigusr1 to all pids
+12. use supervisorctl status to get list of processes and send sigusr1 to all pids -- is this required ?
 
 
 Non critical
