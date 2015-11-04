@@ -808,7 +808,7 @@ class ActivateAccountHandler(BaseHandler):
             return
 
         from initiate_verification import send_verification_mail
-        sessionid = send_verification_mail(suspended_user)
+        send_verification_mail(suspended_user, True)
         self.set_status(200)
         self.write({'status': 200})
         self.finish()

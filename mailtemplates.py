@@ -26,11 +26,20 @@ readdresswelcome = """<h3>Hi {{name}},</h3>
 <h4>Send us your feedback, feature request to feedback@readdress.io, we'll be glad to hear from you</h4>
 <h5>Warm Regards<br>Readdress.io</h5>"""
 
+activationTemplate = """<h3>Readdress Phone Verification Mail</h3>
+<h4>Click on the below link and follow instructions to complete phone number verification</h4>
+<h4>https://readdress.io/verifyphone/{{sessionid}}</h4>
+
+<h4>Once you click the above link, you will receive a call from international number and details of the same is needed to complete verification, please keep your phone close by and in reachable state</h4>
+<h5>note: The above link is valid only till {{validity_time}} and for one time use only. Please do not forward this to anyone.</h5>
+
+<h5>You have received this mail as you have signed up with readdress.io and sent activation mail to us, If you haven't signedup with readdress.io, please ignore this and may be it is a good idea to change password of your email service</h5>"""
 
 verifyPhoneTemplate = """<h3>Readdress Phone Verification Mail</h3>
 <h4>Click on the below link and follow instructions to complete phone number verification</h4>
 <h4>https://readdress.io/verifyphone/{{sessionid}}</h4>
 
+<h4>Once you click the above link, you will receive a call from international number and details of the same is needed to complete verification, please keep your phone close by and in reachable state</h4>
 <h5>note: The above link is valid only till {{validity_time}} and for one time use only. Please do not forward this to anyone.</h5>
 
 <h5>You have received this mail as you have signed up with readdress.io, If you haven't signedup with readdress.io, please ignore this and may be it is a good idea to change password of your email service</h5>"""
@@ -39,6 +48,7 @@ verifyPhoneTemplate_lastAttempt = """<h3>Readdress Phone Verification Mail Final
 <h4>Click on the below link and follow instructions to complete phone number verification</h4>
 <h4>https://readdress.io/verifyphone/{{sessionid}}</h4>
 
+<h4>Once you click the above link, you will receive a call from international number and details of the same is needed to complete verification, please keep your phone close by and in reachable state</h4>
 <h5>note: The above link is valid only till {{validity_time}} and for one time use only. Please do not forward this to anyone.</h5>
 <h5>This is final reminder to verify your phone number, if not verified with in {{validity_time}} your readdress.io account will be suspended</h5>
 
@@ -54,6 +64,11 @@ mailtemplates = {'readdrsignup': { 'subject': 'Verify to Get Started', 'template
                  'readdressinvite': { 'subject': 'Check out exciting features on readdress.io', 'template': readdressinvite, 'from_email': 'noreply'},
                  'readdresspluscode': { 'subject': 'Plus+Code Update', 'template': readdresspluscode, 'from_email': 'noreply'},
                  'readdresswelcome': { 'subject': 'Welcome to Readdress.io', 'template': readdresswelcome, 'from_email': 'noreply'},
+
+
+                 'activationTemplate' : { 
+                    'subject':'Readdress.io: Verify your phone number for activation', 
+                    'template': activationTemplate, 'from_email' : 'noreply' } , 
 
                  'verifyPhoneTemplate' : { 
                     'subject':'Readdress.io: Verify your phone number for continued service', 

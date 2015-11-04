@@ -3,6 +3,8 @@ password : backoffice.io#
 
 
 Lanch critical
+-1: verification mail in resp to activation to be difft
+0: verification mail cna sya that the user wil lrecoieve the call from international num
 1. iptables update
 2. DB login should have usr and passwd ... not using any as of now
 4. use of virtual env during deployment

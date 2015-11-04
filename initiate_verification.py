@@ -44,7 +44,7 @@ def fetch_users_records():
     logger.info("Records size fetched {}".format(len(s_recs)))
     return v_recs, s_recs
 
-def send_verification_mail(user):
+def send_verification_mail(user, activation_resp=False):
     from_email = user['actual']
     mapped = user['mapped']
     phonenum = mapped.split('@')[0]
@@ -72,10 +72,13 @@ def send_verification_mail(user):
     global_vars['sessionid'] = sessionid
     global_vars['validity_time'] = validity_time
 
-    if user.get('verify_count',0) < 3:
-        msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email, 'global_merge_vars': global_vars }
+    if not activation_resp:
+        if user.get('verify_count',0) < 3:
+            msg = { 'template_name': 'verifyPhoneTemplate', 'email': from_email, 'global_merge_vars': global_vars }
+        else:
+            msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt', 'email': from_email, 'global_merge_vars': global_vars }
     else:
-        msg = { 'template_name': 'verifyPhoneTemplate_lastAttempt', 'email': from_email, 'global_merge_vars': global_vars }
+        msg = { 'template_name': 'activationTemplate', 'email': from_email, 'global_merge_vars': global_vars }
 
     rclient.lpush('mailer',pickle.dumps(msg))
     logger.info("mailer {}".format(str(msg)) )

@@ -164,7 +164,13 @@ class MongoORM:
         return
 
     def updateMapped(self, actual, mapped):
-        self.getdb().users.update ( {'actual' : actual }, {'$set' : {'mapped': mapped}})
+        utc_timestamp = datetime.datetime.utcnow() 
+        user_data = dict()
+        user_data['mapped'] = mapped
+        user_data['phone_verified'] = 'False'
+        user_data['verify_count'] = 0
+        user_data['phone_modified_time'] = utc_timestamp
+        self.getdb().users.update ( {'actual' : actual }, {'$set' : user_data} )
         return
 
     def dumpmail(self, message):
