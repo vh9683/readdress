@@ -3,6 +3,7 @@ password : backoffice.io#
 
 
 Lanch critical
+-2: https://github.com/ozgur/python-linkedin -- check this out
 -1: verification mail in resp to activation to be difft
 0: verification mail cna sya that the user wil lrecoieve the call from international num
 1. iptables update
