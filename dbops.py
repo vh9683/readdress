@@ -142,10 +142,7 @@ class MongoORM:
         return duser
 
     def updateExpAndInsertDeregUser(self, user):
-        utc_timestamp = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-        self.getdb().users.update({"actual": user['actual']},
-                                  {"$set": {'Expiry_date': utc_timestamp}})
-
+        self.getdb().removeUser(user)
         self.getdb().deregisteredUsers.insert( user )
         return
 
