@@ -18,7 +18,7 @@ readdresspluscode = """<h3>Hi {{name}},</h3>
 
 readdresswelcome = """<h3>Hi {{name}},</h3>
 <h4>You have successfully completed the signup process and your Readdress.io Id {{id}} is ready to be shared.</h4>
-<h4>Here's how you can send mail through Readdress, to someone who doesn't have Readdress.io Id:<br>Say you want to send mail to someone@example.com, then shoot mail to someone#example.com@readdress.io (it is two consectuive underscore), and we'll handle it from there. It's as simple as that!</h4>
+<h4>Here's how you can send mail through Readdress, to someone who doesn't have Readdress.io Id:<br>Say you want to send mail to someone@example.com, then shoot mail to someone#example.com@readdress.io, and we'll handle it from there. It's as simple as that!</h4>
 <h4>If you didn't provide your home plus+code during signup, please do take a minute to provide same. Send your plus+code as subject to pluscode@readdress.io, head to http://plus.codes to get the code now!. You can update existing plus+code anytime in the same way.</h4>
 <h4>You will receive a mail to verify your phone number. Instructions for verify will be in the mail. If the phone number is not verified upon receiveing the mail your services might get suspended.</h4>
 <h4>You can invite your friends to use this service, just send a mail to inviteafriend@readdress.io and mentioned your friends e-mail id in subject line.</h4>
