@@ -276,15 +276,7 @@ class SignupHandler(BaseHandler):
 
         duser = yield inbounddb.deregisteredUsers.find_one({'actual': from_email}) 
         if duser:
-            msg = {'template_name': 'readdressfailure', 'email': from_email, 'global_merge_vars': [{'name': 'reason', 'content': "You have deregistered from using our services"}]}
-            count = rclient.publish('mailer',pickle.dumps(msg))
-            gen_log.info('message ' + str(msg))
-            gen_log.info('message published to ' + str(count))
-            self.set_status(200)
-            self.write({'status': 200})
-            self.finish()
-            return
-
+            yield inbounddb.deregisteredUsers.remove({'actual': from_email}) 
 
         session = {'actual': from_email, 'mapped': phonenum[1:]+'@'+OUR_DOMAIN, 'phonenum': phonenum, 'name': from_name}
         sessionid = uuid.uuid4().hex
