@@ -775,7 +775,7 @@ class ActivateAccountHandler(BaseHandler):
       return
 
     actual_user = yield self.getuser(from_email)
-    if actual_user or actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) :
+    if actual_user and actual_user['mapped'] != (phonenum[1:]+'@'+OUR_DOMAIN) :
       content = "You are not allowed to activate this account \n"
       phvalids = PhoneValidations('+'+actual_user['mapped'].split('@')[0])
       if phvalids.validate():
