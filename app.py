@@ -801,8 +801,8 @@ class ActivateAccountHandler(BaseHandler):
       self.finish()
       return
 
-    from initiate_verification import sendVerificationMail
-    sessionid = sendVerificationMail(actual_user)
+    from initiate_verification import send_verification_mail
+    sessionid = send_verification_mail(actual_user)
     session = rclient.get(sessionid)
     session['user_data'] = pickle.dumps(actual_user)
     self.set_status(200)
