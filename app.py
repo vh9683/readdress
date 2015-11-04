@@ -100,9 +100,8 @@ class BaseHandler(tornado.web.RequestHandler):
                 
         action = readdress_configs.ConfigSectionMap('APP')['DKIM_SPF_FAILURE_ACTION']
         if action == 'REJECT':
-            pass
-
-        if (action == 'WARN' or action == 'ALLOW') and mail_allowed == False:
+            mail_allowed = False
+        elif (action == 'WARN' or action == 'ALLOW') and mail_allowed == False:
             mail_allowed = True
             gen_log.warn("Mail with msgid {} failed filter check".format
                           ( ev['msg']['headers']['Message-Id'] ) )
