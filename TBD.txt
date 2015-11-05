@@ -16,6 +16,22 @@ Lanch critical
 11. include API key in welcome mail based on domain
 12. use supervisorctl status to get list of processes and send sigusr1 to all pids -- is this required ?
 
+There is a way we can use this service for password less login into other services - location based login
+During signup, the user is asked to share location and give a name for the same (eg. home), we save a token in
+the machine indentifing the user and location
+
+Later similar to google signin, other websites can add support for our login and if clicked, we check for saved token
+and its validity, if not we mail him a link to establish identity on that machine based on location. Since the accuracy
+of location on desktop / laptops are less, we can provide qr-code that can be scanned on mobile to open the same link
+with some extra info so that server knows the identity and accurate location everytime.
+
+This system can replace the rest api and otp based approach above.
+
+Another idea is to provide random user id oursleves instead of phone number. For that to work, we need to generate messsge id ourselves
+and maintain db of the same. This is useful for people who want to hide their phone number. The other approach is similar to url
+shortener, we generate a random id based on hmac of the actual email id and send this in the signup response. So phone number is still
+present with us but mapped email id doesn't have it.
+
 
 Non critical
 * Should we handle cases where email-id is modified and difft users are to be notfied abt the same
