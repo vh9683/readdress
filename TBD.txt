@@ -3,6 +3,7 @@ password : backoffice.io#
 
 
 Lanch critical
+-4: http://superlance.readthedocs.org/en/latest/index.html#
 -3: http://supervisord.org/events.html
 -2: https://github.com/ozgur/python-linkedin -- check this out
 -1: verification mail in resp to activation to be difft
