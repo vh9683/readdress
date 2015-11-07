@@ -633,7 +633,8 @@ class VerifyPhoneHandlder(BaseHandler):
             return
 
         user = yield inbounddb.users.find_one({'actual': session['actual']})
-        if user:
+        sup_user = yield inbounddb.suspended_users.find_one({'actual': session['actual']})
+        if not user and not sup_user:
             rclient.delete(sessionid)
             self.render("sorry.html",reason="Invalid Attempt. This link is not valid")
             return
@@ -674,10 +675,12 @@ class VerifyPhoneHandlder(BaseHandler):
             return
 
         inbounddb = self.settings['inbounddb']
-        user = yield inbounddb.suspended_users.find_one({'actual': session['actual']})
-        if not user:
+
+        user = yield inbounddb.users.find_one({'actual': session['actual']})
+        sup_user = yield inbounddb.suspended_users.find_one({'actual': session['actual']})
+        if not user and not sup_user:
             rclient.delete(sessionid)
-            self.render("sorry.html",reason="Invalid Session. This link is not valid")
+            self.render("sorry.html",reason="Invalid Attempt. This link is not valid")
             return
 
         otp = self.get_argument('otp','junk')
@@ -701,10 +704,12 @@ class VerifyPhoneHandlder(BaseHandler):
             ud['verify_count'] = 0
             ud['phone_verified'] = 'True'
             yield inbounddb.users.insert( ud )
-            reason += 'Your account has been activated\n'
-            yield inbounddb.suspended_users.remove ( { 'actual':ud['actual'] } )
+            if session['activation'] == 'True':
+                reason += 'Your account has been activated\n'
+                yield inbounddb.suspended_users.remove ( { 'actual':ud['actual'] } )
         else:
             yield inbounddb.users.update({'actual': session['actual']}, {'$set': {'phone_verified':'True'}})
+            yield inbounddb.users.update( { 'actual': session['actual'] },  {"$set": {'verify_count' : 0} } )
 
         self.render("success.html",reason=reason)
         rclient.delete(sessionid)
