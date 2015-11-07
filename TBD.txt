@@ -3,18 +3,16 @@ password : backoffice.io#
 
 
 Lanch critical
--4: http://superlance.readthedocs.org/en/latest/index.html#
--3: http://supervisord.org/events.html
--2: https://github.com/ozgur/python-linkedin -- check this out
--1: verification mail in resp to activation to be difft
-0: verification mail cna sya that the user wil lrecoieve the call from international num
-1. iptables update
-2. DB login should have usr and passwd ... not using any as of now
-4. use of virtual env during deployment
-5. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
-6. Create a new mail id - otp@readdress.io to get TOTP
-7. Create a REST API that takes API key, phone number and totp and returns user data
-9. update verify page with details on why plus code is asked
+1: http://superlance.readthedocs.org/en/latest/index.html#
+2: http://supervisord.org/events.html
+3: https://github.com/ozgur/python-linkedin -- check this out
+4. iptables update
+5. DB login should have usr and passwd ... not using any as of now
+6. use of virtual env during deployment
+7. https://docs.python.org/2/library/profile.html?highlight=stats#profile.Profile.create_stats
+8. Create a new mail id - otp@readdress.io to get TOTP
+9. Create a REST API that takes API key, phone number and totp and returns user data
+10. update verify page with details on why plus code is asked
 11. include API key in welcome mail based on domain
 12. use supervisorctl status to get list of processes and send sigusr1 to all pids -- is this required ?
 
