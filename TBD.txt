@@ -3,6 +3,7 @@ password : backoffice.io#
 
 
 Lanch critical
+-1: http://pydoc.net/Python/APScheduler/3.0.0b2/apscheduler.schedulers.tornado/
 0: https://github.com/Supervisor/superlance.git --> does not install on server ... installs on VM
 1: http://superlance.readthedocs.org/en/latest/index.html#
 2: http://supervisord.org/events.html
